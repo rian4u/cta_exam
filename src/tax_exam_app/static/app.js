@@ -12,7 +12,6 @@ const CURRENT_USER_ID = getOrCreateUserId();
 
 const SCREENS = ["homeScreen", "setupScreen", "mockScreen", "resultScreen", "notesScreen", "placeholderScreen"];
 const DASHBOARD_LABELS = ["재정학", "회계학", "세법학", "선택법"];
-const DASHBOARD_DEFAULT_AVG = [72, 68, 70, 66];
 const DASHBOARD_DEFAULT_ME = [64, 74, 58, 61];
 const MODE_META = {
   mock: { title: "모의고사 설정", desc: "연도/과목 선택 후 문제풀이를 시작합니다." },
@@ -52,7 +51,7 @@ const state = {
     memoSearch: "",
   },
   nav: { history: [] },
-  chart: { labels: DASHBOARD_LABELS, avg: [...DASHBOARD_DEFAULT_AVG], me: [...DASHBOARD_DEFAULT_ME], zones: [] },
+  chart: { labels: DASHBOARD_LABELS, me: [...DASHBOARD_DEFAULT_ME], zones: [] },
 };
 
 async function api(path, options = {}) {
@@ -143,7 +142,7 @@ function computeDday() {
   $("#ddayText").textContent = diff >= 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
 }
 
-function drawRadarChart(avg = DASHBOARD_DEFAULT_AVG, me = DASHBOARD_DEFAULT_ME) {
+function drawRadarChart(me = DASHBOARD_DEFAULT_ME) {
   const canvas = $("#radarChart");
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
@@ -157,9 +156,8 @@ function drawRadarChart(avg = DASHBOARD_DEFAULT_AVG, me = DASHBOARD_DEFAULT_ME) 
   const chartW = right - left;
   const chartH = bottom - top;
   const groupW = chartW / labels.length;
-  const barW = Math.min(16, groupW * 0.26);
+  const barW = Math.min(22, groupW * 0.42);
   state.chart.labels = [...labels];
-  state.chart.avg = [...avg];
   state.chart.me = [...me];
   state.chart.zones = [];
 
@@ -180,12 +178,9 @@ function drawRadarChart(avg = DASHBOARD_DEFAULT_AVG, me = DASHBOARD_DEFAULT_ME) 
 
   for (let i = 0; i < labels.length; i += 1) {
     const gx = left + groupW * i + groupW / 2;
-    const avgH = (avg[i] / maxScore) * chartH;
     const meH = (me[i] / maxScore) * chartH;
-    ctx.fillStyle = "#7e8ca6";
-    ctx.fillRect(gx - barW - 2, bottom - avgH, barW, avgH);
     ctx.fillStyle = "#2f8cff";
-    ctx.fillRect(gx + 2, bottom - meH, barW, meH);
+    ctx.fillRect(gx - barW / 2, bottom - meH, barW, meH);
     ctx.fillStyle = "#4f6388";
     ctx.textAlign = "center";
     ctx.fillText(labels[i], gx, h - 8);
@@ -211,9 +206,8 @@ function showChartTooltipByX(clientX) {
     hideChartTooltip();
     return;
   }
-  const avg = state.chart.avg[zone.idx];
   const me = state.chart.me[zone.idx];
-  tooltip.textContent = `${zone.label} 평균 ${avg} / 내점수 ${me}`;
+  tooltip.textContent = `${zone.label} ${me}점`;
   tooltip.classList.remove("hidden");
 }
 
@@ -240,17 +234,24 @@ function _clampScore(v) {
 async function refreshDashboardChart() {
   try {
     const data = await api(`/api/dashboard/learning-metrics?user_id=${encodeURIComponent(CURRENT_USER_ID)}`);
-    const avg = [...DASHBOARD_DEFAULT_AVG];
     const me = [...DASHBOARD_DEFAULT_ME];
+    const myScores = data?.my_recent_scores || {};
     DASHBOARD_LABELS.forEach((label, idx) => {
-      const avgVal = _clampScore(data?.overall_avg_scores?.[label]);
-      const meVal = _clampScore(data?.my_recent_scores?.[label]);
-      if (avgVal !== null) avg[idx] = avgVal;
+      if (label === "선택법") {
+        const choiceCandidates = ["선택법", "민법", "상법", "행정소송법"]
+          .map((k) => _clampScore(myScores[k]))
+          .filter((v) => v !== null);
+        if (choiceCandidates.length > 0) {
+          me[idx] = Math.max(...choiceCandidates);
+        }
+        return;
+      }
+      const meVal = _clampScore(myScores[label]);
       if (meVal !== null) me[idx] = meVal;
     });
-    drawRadarChart(avg, me);
+    drawRadarChart(me);
   } catch {
-    drawRadarChart(DASHBOARD_DEFAULT_AVG, DASHBOARD_DEFAULT_ME);
+    drawRadarChart(DASHBOARD_DEFAULT_ME);
   }
 }
 
@@ -438,6 +439,7 @@ async function toggleFavorite(target, color) {
         subject_code: subject,
         question_no_exam: qno,
         user_id: CURRENT_USER_ID,
+        source: state.session.type,
       }),
     });
     delete state.session.starByKey[key];

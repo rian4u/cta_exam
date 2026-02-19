@@ -10,8 +10,9 @@ from .models import NoteRecord, ProcessedQuestion, RawQuestion
 
 
 class SQLiteRepository:
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, schema_profile: str = "full") -> None:
         self.db_path = db_path
+        self.schema_profile = schema_profile
         self._init_schema()
 
     @contextmanager
@@ -26,6 +27,9 @@ class SQLiteRepository:
             conn.close()
 
     def _init_schema(self) -> None:
+        if self.schema_profile == "service":
+            self._init_service_schema()
+            return
         with self._conn() as conn:
             conn.executescript(
                 """
@@ -252,6 +256,168 @@ class SQLiteRepository:
                     FOREIGN KEY(last_attempt_id) REFERENCES user_exam_attempts(id) ON DELETE CASCADE
                 );
 
+                CREATE INDEX IF NOT EXISTS idx_choice_visibility_user_subject
+                    ON user_choice_visibility(user_id, exam_year, subject_code, question_no_exam);
+                CREATE INDEX IF NOT EXISTS idx_attempts_user_subject
+                    ON user_exam_attempts(user_id, subject_code, mode, finished_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_attempt_answers_attempt
+                    ON user_exam_attempt_answers(attempt_id);
+                """
+            )
+            try:
+                conn.execute("ALTER TABLE exam_choice_ox_bank ADD COLUMN choice_explanation_text TEXT")
+            except sqlite3.OperationalError:
+                pass
+
+    def _init_service_schema(self) -> None:
+        with self._conn() as conn:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS exam_question_bank (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    exam_year INTEGER NOT NULL,
+                    session_no INTEGER NOT NULL DEFAULT 0,
+                    booklet_type TEXT NOT NULL DEFAULT 'A',
+                    subject_name TEXT NOT NULL,
+                    subject_code TEXT NOT NULL,
+                    question_no_exam INTEGER NOT NULL,
+                    question_no_subject INTEGER NOT NULL DEFAULT 0,
+                    question_text TEXT NOT NULL,
+                    choices_json TEXT NOT NULL,
+                    source_file TEXT NOT NULL DEFAULT '',
+                    official_answer TEXT,
+                    service_answer TEXT,
+                    review_flag INTEGER NOT NULL DEFAULT 0,
+                    review_reason TEXT,
+                    explanation_text TEXT,
+                    explanation_model TEXT,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS exam_choice_ox_bank (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    question_bank_id INTEGER NOT NULL,
+                    exam_year INTEGER NOT NULL,
+                    subject_code TEXT NOT NULL,
+                    question_no_exam INTEGER NOT NULL,
+                    choice_no INTEGER NOT NULL,
+                    choice_text TEXT NOT NULL,
+                    choice_explanation_text TEXT,
+                    is_ox_eligible INTEGER NOT NULL DEFAULT 1,
+                    expected_ox TEXT,
+                    stem_polarity TEXT,
+                    judge_reason TEXT NOT NULL DEFAULT '',
+                    judge_confidence TEXT NOT NULL DEFAULT 'service',
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(question_bank_id, choice_no),
+                    FOREIGN KEY(question_bank_id) REFERENCES exam_question_bank(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS app_users (
+                    user_id TEXT PRIMARY KEY,
+                    display_name TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS user_choice_visibility (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    exam_year INTEGER NOT NULL,
+                    subject_code TEXT NOT NULL,
+                    question_no_exam INTEGER NOT NULL,
+                    choice_no INTEGER NOT NULL,
+                    hidden INTEGER NOT NULL DEFAULT 1,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(user_id, exam_year, subject_code, question_no_exam, choice_no),
+                    FOREIGN KEY(user_id) REFERENCES app_users(user_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS user_exam_attempts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    exam_year INTEGER,
+                    subject_code TEXT NOT NULL,
+                    total_questions INTEGER NOT NULL,
+                    answered_questions INTEGER NOT NULL,
+                    correct_count INTEGER NOT NULL,
+                    score_100 REAL NOT NULL,
+                    duration_seconds INTEGER NOT NULL DEFAULT 0,
+                    started_at TEXT,
+                    finished_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES app_users(user_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS user_exam_attempt_answers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    attempt_id INTEGER NOT NULL,
+                    item_kind TEXT NOT NULL,
+                    question_bank_id INTEGER,
+                    ox_item_id INTEGER,
+                    exam_year INTEGER NOT NULL,
+                    subject_code TEXT NOT NULL,
+                    question_no_exam INTEGER NOT NULL,
+                    choice_no INTEGER,
+                    selected_answer TEXT,
+                    correct_answer TEXT,
+                    is_correct INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(attempt_id) REFERENCES user_exam_attempts(id) ON DELETE CASCADE,
+                    FOREIGN KEY(question_bank_id) REFERENCES exam_question_bank(id) ON DELETE SET NULL,
+                    FOREIGN KEY(ox_item_id) REFERENCES exam_choice_ox_bank(id) ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS user_subject_recent_scores (
+                    user_id TEXT NOT NULL,
+                    subject_code TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    last_attempt_id INTEGER NOT NULL,
+                    last_exam_year INTEGER,
+                    last_score_100 REAL NOT NULL,
+                    attempts_count INTEGER NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(user_id, subject_code, mode),
+                    FOREIGN KEY(user_id) REFERENCES app_users(user_id) ON DELETE CASCADE,
+                    FOREIGN KEY(last_attempt_id) REFERENCES user_exam_attempts(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS bank_user_notes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    exam_year INTEGER NOT NULL,
+                    subject_code TEXT NOT NULL,
+                    question_no_exam INTEGER NOT NULL,
+                    state TEXT NOT NULL,
+                    memo TEXT NOT NULL,
+                    tags TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    last_reviewed_at TEXT,
+                    UNIQUE(user_id, exam_year, subject_code, question_no_exam)
+                );
+
+                CREATE TABLE IF NOT EXISTS bank_user_favorites (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    exam_year INTEGER NOT NULL,
+                    subject_code TEXT NOT NULL,
+                    question_no_exam INTEGER NOT NULL,
+                    color TEXT NOT NULL,
+                    memo TEXT NOT NULL,
+                    tags TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(user_id, exam_year, subject_code, question_no_exam, source)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_eqb_year_subject_qno
+                    ON exam_question_bank(exam_year, subject_code, question_no_exam);
+                CREATE INDEX IF NOT EXISTS idx_ox_subject_year_qno
+                    ON exam_choice_ox_bank(subject_code, exam_year, question_no_exam, choice_no);
                 CREATE INDEX IF NOT EXISTS idx_choice_visibility_user_subject
                     ON user_choice_visibility(user_id, exam_year, subject_code, question_no_exam);
                 CREATE INDEX IF NOT EXISTS idx_attempts_user_subject
@@ -740,74 +906,57 @@ class SQLiteRepository:
 
     def get_learning_dashboard_scores(self, user_id: str) -> dict:
         categories = ["재정학", "회계학", "세법학", "선택법"]
-
-        classify_expr = """
-            CASE
-                WHEN COALESCE(m.subject_name, a.subject_code) LIKE '%재정학%' THEN '재정학'
-                WHEN COALESCE(m.subject_name, a.subject_code) LIKE '%회계학%' THEN '회계학'
-                WHEN COALESCE(m.subject_name, a.subject_code) LIKE '%세법학%' THEN '세법학'
-                WHEN COALESCE(m.subject_name, a.subject_code) LIKE '%상법%'
-                  OR COALESCE(m.subject_name, a.subject_code) LIKE '%민법%'
-                  OR COALESCE(m.subject_name, a.subject_code) LIKE '%행정소송법%' THEN '선택법'
-                ELSE NULL
-            END
-        """
-
         with self._conn() as conn:
-            my_rows = conn.execute(
-                f"""
-                WITH subject_name_map AS (
+            rows = conn.execute(
+                """
+                SELECT s.subject_code, s.last_score_100, s.updated_at,
+                       COALESCE(m.subject_name, s.subject_code) AS subject_name
+                FROM user_subject_recent_scores s
+                LEFT JOIN (
                     SELECT subject_code, MAX(subject_name) AS subject_name
                     FROM exam_question_bank
                     GROUP BY subject_code
-                ),
-                ranked AS (
-                    SELECT
-                        {classify_expr} AS category,
-                        a.score_100 AS score_100,
-                        a.finished_at AS finished_at,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY {classify_expr}
-                            ORDER BY a.finished_at DESC, a.id DESC
-                        ) AS rn
-                    FROM user_exam_attempts a
-                    LEFT JOIN subject_name_map m ON m.subject_code = a.subject_code
-                    WHERE a.user_id = ?
-                      AND a.mode = 'mock'
-                )
-                SELECT category, score_100
-                FROM ranked
-                WHERE category IS NOT NULL AND rn = 1
+                ) m ON m.subject_code = s.subject_code
+                WHERE s.user_id = ?
+                  AND s.mode = 'mock'
                 """,
                 (user_id,),
             ).fetchall()
 
-            avg_rows = conn.execute(
-                f"""
-                WITH subject_name_map AS (
-                    SELECT subject_code, MAX(subject_name) AS subject_name
-                    FROM exam_question_bank
-                    GROUP BY subject_code
-                )
-                SELECT
-                    {classify_expr} AS category,
-                    AVG(a.score_100) AS avg_score
-                FROM user_exam_attempts a
-                LEFT JOIN subject_name_map m ON m.subject_code = a.subject_code
-                WHERE a.mode = 'mock'
-                  AND a.total_questions = 40
-                  AND a.answered_questions = 40
-                GROUP BY category
-                """,
-            ).fetchall()
-
-        my_map = {str(r["category"]): float(r["score_100"]) for r in my_rows if r["category"] is not None}
-        avg_map = {str(r["category"]): float(r["avg_score"]) for r in avg_rows if r["category"] is not None and r["avg_score"] is not None}
+        my_map: dict[str, float] = {}
+        latest_map: dict[str, str] = {}
+        choice_scores: list[float] = []
+        for row in rows:
+            subject_name = str(row["subject_name"] or "")
+            subject_code = str(row["subject_code"] or "")
+            score = float(row["last_score_100"] or 0.0)
+            updated_at = str(row["updated_at"] or "")
+            if "재정학" in f"{subject_name} {subject_code}":
+                category = "재정학"
+            elif "회계학" in f"{subject_name} {subject_code}":
+                category = "회계학"
+            elif "세법학" in f"{subject_name} {subject_code}":
+                category = "세법학"
+            elif ("민법" in f"{subject_name} {subject_code}") or ("상법" in f"{subject_name} {subject_code}") or ("행정소송법" in f"{subject_name} {subject_code}"):
+                category = "선택법"
+            else:
+                category = ""
+            if not category:
+                continue
+            if category == "선택법":
+                choice_scores.append(score)
+                continue
+            prev_ts = latest_map.get(category, "")
+            if updated_at >= prev_ts:
+                latest_map[category] = updated_at
+                my_map[category] = score
+        if choice_scores:
+            my_map["선택법"] = max(choice_scores)
 
         return {
             "categories": categories,
             "my_recent_scores": my_map,
-            "overall_avg_scores": avg_map,
+            "overall_avg_scores": {},
         }
 
     def upsert_bank_note(
@@ -996,7 +1145,7 @@ class SQLiteRepository:
                     color, memo, tags, source, created_at, updated_at
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(user_id, exam_year, subject_code, question_no_exam)
+                ON CONFLICT(user_id, exam_year, subject_code, question_no_exam, source)
                 DO UPDATE SET
                     color=excluded.color,
                     memo=excluded.memo,
@@ -1024,15 +1173,25 @@ class SQLiteRepository:
         exam_year: int,
         subject_code: str,
         question_no_exam: int,
+        source: str | None = None,
     ) -> int:
         with self._conn() as conn:
-            result = conn.execute(
-                """
-                DELETE FROM bank_user_favorites
-                WHERE user_id=? AND exam_year=? AND subject_code=? AND question_no_exam=?
-                """,
-                (user_id, exam_year, subject_code, question_no_exam),
-            )
+            if source:
+                result = conn.execute(
+                    """
+                    DELETE FROM bank_user_favorites
+                    WHERE user_id=? AND exam_year=? AND subject_code=? AND question_no_exam=? AND source=?
+                    """,
+                    (user_id, exam_year, subject_code, question_no_exam, source),
+                )
+            else:
+                result = conn.execute(
+                    """
+                    DELETE FROM bank_user_favorites
+                    WHERE user_id=? AND exam_year=? AND subject_code=? AND question_no_exam=?
+                    """,
+                    (user_id, exam_year, subject_code, question_no_exam),
+                )
             return int(result.rowcount)
 
     def list_ox_subject_options(self) -> list[dict]:
@@ -1163,12 +1322,22 @@ class SQLiteRepository:
 
     def get_dashboard_stats(self) -> dict:
         with self._conn() as conn:
-            total = int(conn.execute("SELECT COUNT(*) AS c FROM questions").fetchone()["c"])
-            published = int(conn.execute("SELECT COUNT(*) AS c FROM questions WHERE status='published'").fetchone()["c"])
-            review_required = int(
-                conn.execute("SELECT COUNT(*) AS c FROM questions WHERE status='review_required'").fetchone()["c"]
-            )
-            notes = int(conn.execute("SELECT COUNT(*) AS c FROM user_notes").fetchone()["c"])
+            try:
+                total = int(conn.execute("SELECT COUNT(*) AS c FROM questions").fetchone()["c"])
+                published = int(conn.execute("SELECT COUNT(*) AS c FROM questions WHERE status='published'").fetchone()["c"])
+                review_required = int(
+                    conn.execute("SELECT COUNT(*) AS c FROM questions WHERE status='review_required'").fetchone()["c"]
+                )
+            except sqlite3.OperationalError:
+                total = int(conn.execute("SELECT COUNT(*) AS c FROM exam_question_bank").fetchone()["c"])
+                published = total
+                review_required = int(
+                    conn.execute("SELECT COUNT(*) AS c FROM exam_question_bank WHERE review_flag=1").fetchone()["c"]
+                )
+            try:
+                notes = int(conn.execute("SELECT COUNT(*) AS c FROM user_notes").fetchone()["c"])
+            except sqlite3.OperationalError:
+                notes = int(conn.execute("SELECT COUNT(*) AS c FROM bank_user_favorites").fetchone()["c"])
 
         return {
             "total_questions": total,

@@ -163,7 +163,6 @@ main {
   margin-right: 6px;
 }
 
-.dot.avg { background: #6d7a94; }
 .dot.me { background: var(--primary); }
 
 .mode-grid {
@@ -212,7 +211,22 @@ main {
 }
 
 .mode-btn.disabled {
-  opacity: 0.68;
+  opacity: 1;
+  background: #eef1f5;
+  border-color: #d3d8e2;
+  color: #7b8598;
+  box-shadow: none;
+}
+
+.mode-btn.disabled .icon {
+  background: #e3e7ee !important;
+  border-color: #c3cad8 !important;
+  color: #7b8598;
+}
+
+.mode-btn.disabled:hover {
+  border-color: #d3d8e2;
+  box-shadow: none;
 }
 
 .subtle {

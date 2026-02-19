@@ -18,6 +18,7 @@ tmp_*.png
 # Local DB/work files
 *.sqlite
 *.sqlite3
+tax_exam.db
 
 # Internal-only assets/scripts (not for service deployment)
 data/

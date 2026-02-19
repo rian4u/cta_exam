@@ -56,21 +56,26 @@ python -m tax_exam_app.enrich_bank_content --db-path ./tax_exam.db --years 2025 
 
 ### 2) 웹 화면 실행 (배포 대상 화면)
 ```bash
+python -m tax_exam_app.build_service_db --source-db tax_exam.db --target-db tax_exam_service.db
+```
+
+### 2-1) 웹 서버 실행
+```bash
 python -m uvicorn tax_exam_app.web:app --app-dir src --host 127.0.0.1 --port 8000
 ```
 브라우저에서 `http://127.0.0.1:8000` 접속
 
-### 2-1) 사용자 데이터 초기화
+### 2-2) 사용자 데이터 초기화
 ```bash
 pip install -e .
-python -m tax_exam_app.reset_user_data --db-path tax_exam.db
+python -m tax_exam_app.reset_user_data --db-path tax_exam_service.db
 ```
 - 풀이기록/점수/즐겨찾기/오답노트/보기가리기 설정을 초기화합니다.
 
-### 2-2) 웹앱 배포 가이드(비개발자용)
+### 2-3) 웹앱 배포 가이드(비개발자용)
 - `docs/DEPLOY_WEBAPP_NONDEV.md` 참고
 
-## 주요 API
+## 주요 API (서비스 배포)
 - `POST /api/batch/run` 배치 실행
 - `GET /api/questions` 문제 목록
 - `GET /api/questions/{id}` 문제 상세
@@ -81,6 +86,8 @@ python -m tax_exam_app.reset_user_data --db-path tax_exam.db
 - `GET /api/mock/questions` 모의고사 문제(정답 비공개)
 - `POST /api/mock/submit` 채점/오답/해설 반환
 - `GET /api/ox/questions` OX 모드용 보기 지문(판정 완료본) 조회
+
+참고: 서비스 배포에서는 배치/관리 API(`batch`, `questions`, `notes`)는 `503`으로 비활성화됩니다.
 
 ## 현재 상태
 - E2E 동작 확인 완료: 배치 -> 문제 공개 -> 화면 조회 -> 오답노트 저장

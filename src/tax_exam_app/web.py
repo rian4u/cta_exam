@@ -1,4 +1,5 @@
-﻿import re
+import os
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
@@ -6,13 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .models import CollectRequest, NoteRecord
 from .repository import SQLiteRepository
-
-try:
-    from .pipeline import BatchPipeline
-except ModuleNotFoundError:
-    BatchPipeline = None
 
 
 def _normalize_answer(value: str | None) -> str:
@@ -98,6 +93,7 @@ class FavoriteDeleteRequest(BaseModel):
     subject_code: str
     question_no_exam: int
     user_id: str = "local-user"
+    source: str | None = None
 
 
 class UserUpsertRequest(BaseModel):
@@ -125,10 +121,9 @@ def _parse_subjects(expr: str) -> list[str]:
     return [x.strip() for x in expr.split(",") if x.strip()]
 
 
-def create_app(db_path: str = "./tax_exam.db") -> FastAPI:
+def create_app(db_path: str = "./tax_exam_service.db") -> FastAPI:
     app = FastAPI(title="세무사 돌돌이", version="0.2.0")
-    repo = SQLiteRepository(db_path)
-    pipeline = BatchPipeline(repo) if BatchPipeline is not None else None
+    repo = SQLiteRepository(db_path, schema_profile="service")
 
     static_dir = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -176,24 +171,11 @@ def create_app(db_path: str = "./tax_exam.db") -> FastAPI:
 
     @app.post("/api/batch/run")
     def run_batch(req: BatchRequest) -> dict:
-        if pipeline is None:
-            raise HTTPException(status_code=503, detail="Batch pipeline is disabled in this deployment")
-        request = CollectRequest(
-            years=_parse_years(req.years),
-            subjects=_parse_subjects(req.subjects),
-            start_urls=req.start_urls,
-        )
-        result = pipeline.run(req.mode, request)
-        return {
-            "batch_id": result.batch_id,
-            "status": result.status,
-            "counts": result.counts,
-            "finished_at": result.finished_at.isoformat(),
-        }
+        raise HTTPException(status_code=503, detail="Batch pipeline is disabled in service deployment")
 
     @app.get("/api/batches")
     def list_batches(limit: int = Query(default=20, ge=1, le=100)) -> list[dict]:
-        return repo.list_batch_runs(limit=limit)
+        raise HTTPException(status_code=503, detail="Batch API is disabled in service deployment")
 
     @app.get("/api/questions")
     def list_questions(
@@ -202,31 +184,19 @@ def create_app(db_path: str = "./tax_exam.db") -> FastAPI:
         subject_code: str | None = None,
         exam_year: int | None = None,
     ) -> list[dict]:
-        return repo.list_questions(limit=limit, status=status, subject_code=subject_code, exam_year=exam_year)
+        raise HTTPException(status_code=503, detail="Question management API is disabled in service deployment")
 
     @app.get("/api/questions/{question_id}")
     def get_question(question_id: int) -> dict:
-        question = repo.get_question(question_id)
-        if not question:
-            raise HTTPException(status_code=404, detail="Question not found")
-        return question
+        raise HTTPException(status_code=503, detail="Question management API is disabled in service deployment")
 
     @app.post("/api/notes")
     def upsert_note(req: NoteRequest) -> dict:
-        note = NoteRecord(
-            question_id=req.question_id,
-            state=req.state,
-            memo=req.memo,
-            tags=req.tags,
-            user_id=req.user_id,
-            source=req.source,
-        )
-        repo.upsert_note(note)
-        return {"ok": True}
+        raise HTTPException(status_code=503, detail="Legacy notes API is disabled in service deployment")
 
     @app.get("/api/notes")
     def list_notes(user_id: str = "local-user") -> list[dict]:
-        return repo.list_notes(user_id=user_id)
+        raise HTTPException(status_code=503, detail="Legacy notes API is disabled in service deployment")
 
     @app.post("/api/bank-notes")
     def upsert_bank_note(req: BankNoteRequest) -> dict:
@@ -282,6 +252,7 @@ def create_app(db_path: str = "./tax_exam.db") -> FastAPI:
             exam_year=req.exam_year,
             subject_code=req.subject_code,
             question_no_exam=req.question_no_exam,
+            source=req.source,
         )
         return {"ok": True, "deleted": deleted}
 
@@ -473,4 +444,4 @@ def create_app(db_path: str = "./tax_exam.db") -> FastAPI:
     return app
 
 
-app = create_app()
+app = create_app(os.getenv("DB_PATH", "./tax_exam_service.db"))
