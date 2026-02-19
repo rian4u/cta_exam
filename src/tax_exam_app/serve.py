@@ -8,7 +8,7 @@ import uvicorn
 def main() -> int:
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("tax_exam_app.web:app", host=host, port=port, app_dir="src", reload=False)
+    uvicorn.run("tax_exam_app.web:app", host=host, port=port, reload=False)
     return 0
 
 

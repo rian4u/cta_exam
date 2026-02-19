@@ -7,8 +7,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .models import CollectRequest, NoteRecord
-from .pipeline import BatchPipeline
 from .repository import SQLiteRepository
+
+try:
+    from .pipeline import BatchPipeline
+except ModuleNotFoundError:
+    BatchPipeline = None
 
 
 def _normalize_answer(value: str | None) -> str:
@@ -124,7 +128,7 @@ def _parse_subjects(expr: str) -> list[str]:
 def create_app(db_path: str = "./tax_exam.db") -> FastAPI:
     app = FastAPI(title="세무사 돌돌이", version="0.2.0")
     repo = SQLiteRepository(db_path)
-    pipeline = BatchPipeline(repo)
+    pipeline = BatchPipeline(repo) if BatchPipeline is not None else None
 
     static_dir = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -172,6 +176,8 @@ def create_app(db_path: str = "./tax_exam.db") -> FastAPI:
 
     @app.post("/api/batch/run")
     def run_batch(req: BatchRequest) -> dict:
+        if pipeline is None:
+            raise HTTPException(status_code=503, detail="Batch pipeline is disabled in this deployment")
         request = CollectRequest(
             years=_parse_years(req.years),
             subjects=_parse_subjects(req.subjects),
