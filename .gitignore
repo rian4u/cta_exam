@@ -1,0 +1,33 @@
+# Python cache/artifacts
+__pycache__/
+*.py[cod]
+
+# Local environments
+.venv/
+venv/
+.env
+
+# OS/editor
+.DS_Store
+Thumbs.db
+
+# Local runtime outputs
+*.log
+tmp_*.png
+
+# Local DB/work files
+*.sqlite
+*.sqlite3
+
+# Internal-only assets/scripts (not for service deployment)
+data/
+src/tax_exam_app/agents/
+src/tax_exam_app/build_question_bank.py
+src/tax_exam_app/cli.py
+src/tax_exam_app/collect_qnet.py
+src/tax_exam_app/enrich_bank_content.py
+src/tax_exam_app/ingest_2025.py
+src/tax_exam_app/ingest_2025_pipeline.py
+src/tax_exam_app/pipeline.py
+src/tax_exam_app/process_2025_llm_current.py
+src/tax_exam_app/process_recent_years.py

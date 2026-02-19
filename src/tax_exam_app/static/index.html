@@ -1,0 +1,142 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>세무사 돌돌이</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&family=Orbitron:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app-wrap">
+    <div class="phone-ui">
+      <header class="app-header">
+        <div class="brand">될때까지...!</div>
+        <div class="header-row">
+          <button id="topBackBtn" class="mini-btn header-nav">⬅️</button>
+          <h1>세무사 돌돌이</h1>
+          <button id="topHomeBtn" class="mini-btn header-nav">🏠</button>
+        </div>
+      </header>
+
+      <main>
+        <section id="homeScreen" class="screen active">
+          <div class="home-meta">
+            <strong>학습 대시보드</strong>
+            <span id="ddayText" class="dday">D-00</span>
+          </div>
+          <div class="radar-card">
+            <canvas id="radarChart" width="280" height="190"></canvas>
+            <div id="chartTooltip" class="chart-tooltip hidden"></div>
+            <div class="legend bottom">
+              <span><i class="dot avg"></i>전체 평균</span>
+              <span><i class="dot me"></i>내 최근 성적</span>
+            </div>
+          </div>
+
+          <div class="mode-grid">
+            <button class="mode-btn" data-mode="mock">
+              <span class="icon">📝</span>
+              <span class="label">모의고사</span>
+            </button>
+            <button class="mode-btn disabled" data-mode="soon2">
+              <span class="icon">🎯</span>
+              <span class="label">개발중</span>
+            </button>
+            <button class="mode-btn" data-mode="notes">
+              <span class="icon">📚</span>
+              <span class="label">즐겨찾기</span>
+            </button>
+            <button class="mode-btn" data-mode="ox">
+              <span class="icon">⭕</span>
+              <span class="label">OX모드</span>
+            </button>
+            <button class="mode-btn disabled" data-mode="soon1">
+              <span class="icon">🔁</span>
+              <span class="label">회독관리</span>
+            </button>
+            <button class="mode-btn disabled" data-mode="soon2">
+              <span class="icon">🚧</span>
+              <span class="label">개발중</span>
+            </button>
+          </div>
+        </section>
+
+        <section id="setupScreen" class="screen">
+          <div class="panel">
+            <strong id="setupTitle">모드 설정</strong>
+            <p id="setupDesc" class="subtle">연도와 과목을 선택하세요.</p>
+            <label class="field" id="setupYearField">연도
+              <select id="setupYear"></select>
+            </label>
+            <label class="field" id="setupSubjectField">과목
+              <select id="setupSubject"></select>
+            </label>
+            <button id="setupContinueBtn" class="primary-btn">시작하기</button>
+          </div>
+        </section>
+
+        <section id="mockScreen" class="screen">
+          <div class="panel">
+            <div class="row-between">
+              <span></span>
+              <span id="mockScoreBadge" class="score-badge" style="display:none;"></span>
+            </div>
+            <div class="row-between mock-subrow">
+              <p id="mockMeta" class="subtle"></p>
+              <div id="topStarActions" class="top-star-actions"></div>
+            </div>
+            <div id="questionProgressGrid" class="progress-grid"></div>
+            <div id="mockQuestion" class="question-box">문제를 불러오는 중입니다.</div>
+            <button id="submitMockBtn" class="ghost-btn">채점하기</button>
+          </div>
+        </section>
+
+        <section id="resultScreen" class="screen">
+          <div class="panel">
+            <strong>결과 확인</strong>
+            <div id="resultSummary" class="question-box"></div>
+            <div id="resultProgressGrid" class="progress-grid" style="margin-top:10px;"></div>
+            <div id="resultBody" class="list"></div>
+          </div>
+        </section>
+
+        <section id="notesScreen" class="screen">
+          <div class="panel">
+            <strong>즐겨찾기</strong>
+            <p id="notesMeta" class="subtle"></p>
+            <div class="notes-filters">
+              <label class="field">과목
+                <select id="notesSubjectFilter"></select>
+              </label>
+              <label class="field">색상
+                <select id="notesColorFilter"></select>
+              </label>
+              <label class="field">구분
+                <select id="notesSourceFilter"></select>
+              </label>
+            </div>
+            <label class="field">코멘트 검색
+              <input id="notesMemoSearch" type="text" placeholder="코멘트 키워드" />
+            </label>
+            <div id="notesList" class="list"></div>
+          </div>
+        </section>
+
+        <section id="placeholderScreen" class="screen">
+          <div class="panel">
+            <strong id="placeholderTitle">준비중</strong>
+            <p id="placeholderDesc" class="subtle">기능 구현 예정입니다.</p>
+          </div>
+        </section>
+      </main>
+
+      <div class="copyright">Copyright © 도로파파</div>
+    </div>
+  </div>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
