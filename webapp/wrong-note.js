@@ -1,13 +1,17 @@
 const SUBJECTS = ["재정학", "세법학개론", "회계학개론", "상법", "민법", "행정소송법"];
+const USER_STORAGE_KEY = "taxexam:user-id";
+const DEFAULT_USER_ID = "guest";
 
 const state = {
   apiReady: false,
   apiBase: "",
   selectedImportances: new Set(["red", "yellow", "green", "gray"]),
+  userId: DEFAULT_USER_ID,
   searchTimer: null,
 };
 const IMPORTANCE_LEVELS = new Set(["red", "yellow", "green", "gray"]);
 
+const userInput = document.getElementById("wrong-filter-user");
 const subjectSelect = document.getElementById("wrong-filter-subject");
 const trafficButtons = [...document.querySelectorAll("#wrong-filter-traffic .traffic-btn")];
 const commentInput = document.getElementById("wrong-filter-comment");
@@ -68,6 +72,38 @@ function normalizeImportance(value) {
   return IMPORTANCE_LEVELS.has(normalized) ? normalized : "green";
 }
 
+function normalizeUserId(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return DEFAULT_USER_ID;
+  }
+  return normalized.slice(0, 64);
+}
+
+function applyUserId(value, { persist = true } = {}) {
+  const userId = normalizeUserId(value);
+  state.userId = userId;
+  if (userInput && userInput.value !== userId) {
+    userInput.value = userId;
+  }
+  if (persist) {
+    try {
+      localStorage.setItem(USER_STORAGE_KEY, userId);
+    } catch (_) {}
+  }
+}
+
+function initUserId() {
+  const storedUserId = (() => {
+    try {
+      return localStorage.getItem(USER_STORAGE_KEY) || "";
+    } catch (_) {
+      return "";
+    }
+  })();
+  applyUserId(storedUserId, { persist: false });
+}
+
 function buildLight(importance) {
   const normalizedImportance = normalizeImportance(importance);
   const light = document.createElement("span");
@@ -99,6 +135,7 @@ function renderResults(items) {
       year: String(item.year),
       subject: item.subject,
       questionNo: String(item.question_no),
+      userId: state.userId,
     });
 
     const titleRow = document.createElement("div");
@@ -142,6 +179,7 @@ async function searchWrongNotes() {
   }
 
   const query = new URLSearchParams();
+  query.set("user_id", state.userId);
   if (subjectSelect.value) {
     query.set("subject", subjectSelect.value);
   }
@@ -176,6 +214,12 @@ function scheduleSearch() {
 }
 
 function bindEvents() {
+  if (userInput) {
+    userInput.addEventListener("change", () => {
+      applyUserId(userInput.value);
+      scheduleSearch();
+    });
+  }
   subjectSelect.addEventListener("change", scheduleSearch);
   commentInput.addEventListener("input", scheduleSearch);
 
@@ -194,6 +238,7 @@ function bindEvents() {
 }
 
 async function init() {
+  initUserId();
   initSubjectFilter();
   renderTrafficFilter();
   bindEvents();

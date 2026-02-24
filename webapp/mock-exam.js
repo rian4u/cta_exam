@@ -4,6 +4,8 @@ const OPEN_YEARS = new Set([2025]);
 const TAX_EXAM_DATE_2026 = new Date(2026, 3, 25);
 const DEFAULT_IMPORTANCE = "green";
 const IMPORTANCE_LEVELS = new Set(["red", "yellow", "green", "gray"]);
+const USER_STORAGE_KEY = "taxexam:user-id";
+const DEFAULT_USER_ID = "guest";
 
 const TEXT = {
   explainOpen: "해설보기",
@@ -26,6 +28,7 @@ const TEXT = {
 const state = {
   selectedSubject: "",
   selectedYear: null,
+  userId: DEFAULT_USER_ID,
   apiReady: false,
   apiBase: "",
   questions: [],
@@ -48,6 +51,7 @@ const examPanel = document.getElementById("exam-panel");
 const phoneRoot = document.querySelector(".phone");
 const subjectGrid = document.getElementById("subject-grid");
 const yearGrid = document.getElementById("year-grid");
+const userIdInput = document.getElementById("user-id-input");
 const startButton = document.getElementById("start-button");
 const setupMessage = document.getElementById("setup-message");
 const examLabel = document.getElementById("exam-label");
@@ -96,6 +100,38 @@ function normalizeImportance(value) {
     .trim()
     .toLowerCase();
   return IMPORTANCE_LEVELS.has(normalized) ? normalized : DEFAULT_IMPORTANCE;
+}
+
+function normalizeUserId(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return DEFAULT_USER_ID;
+  }
+  return normalized.slice(0, 64);
+}
+
+function applyUserId(value, { persist = true } = {}) {
+  const userId = normalizeUserId(value);
+  state.userId = userId;
+  if (userIdInput && userIdInput.value !== userId) {
+    userIdInput.value = userId;
+  }
+  if (persist) {
+    try {
+      localStorage.setItem(USER_STORAGE_KEY, userId);
+    } catch (_) {}
+  }
+}
+
+function initUserId() {
+  const storedUserId = (() => {
+    try {
+      return localStorage.getItem(USER_STORAGE_KEY) || "";
+    } catch (_) {
+      return "";
+    }
+  })();
+  applyUserId(storedUserId, { persist: false });
 }
 
 function isYearEnabled(year) {
@@ -181,10 +217,12 @@ function parseBootParams() {
   const year = Number(params.get("year") || "");
   const subject = params.get("subject") || "";
   const questionNo = Number(params.get("questionNo") || "");
+  const userId = params.get("userId") || "";
   return {
     year: Number.isFinite(year) ? year : NaN,
     subject,
     questionNo: Number.isFinite(questionNo) ? questionNo : NaN,
+    userId,
   };
 }
 
@@ -206,6 +244,7 @@ async function loadQuestionsFromDb() {
   const query = new URLSearchParams({
     year: String(state.selectedYear),
     subject: state.selectedSubject,
+    user_id: state.userId,
   });
   const response = await fetch(`${state.apiBase}/api/questions?${query.toString()}`);
   if (!response.ok) {
@@ -439,6 +478,7 @@ async function persistWrongNote(question, note) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      user_id: state.userId,
       year: state.selectedYear,
       subject: state.selectedSubject,
       question_no: question.originalNo,
@@ -870,9 +910,13 @@ async function startExam() {
 }
 
 async function init() {
+  initUserId();
   createChoiceButtons(SUBJECTS, subjectGrid, selectSubject);
   createYearButtons();
   const boot = parseBootParams();
+  if (boot.userId) {
+    applyUserId(boot.userId);
+  }
   if (SUBJECTS.includes(boot.subject)) {
     selectSubject(boot.subject);
   }
@@ -885,6 +929,15 @@ async function init() {
   await verifyApiReady();
   initCalculator();
   initExplanationEvents();
+  if (userIdInput) {
+    userIdInput.addEventListener("change", async () => {
+      applyUserId(userIdInput.value);
+      if (state.selectedSubject && state.selectedYear && state.apiReady) {
+        await loadWrongNotesFromDb();
+        renderExam();
+      }
+    });
+  }
   renderExamDday();
   showSetupPanel();
   refreshStartButton();

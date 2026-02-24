@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+from fill_missing_answers_gemini import ensure_answered_column, enrich_missing_answers, load_api_key
+
 
 FIRST_SESSION_SUBJECTS = ("\uc7ac\uc815\ud559", "\uc138\ubc95\ud559\uac1c\ub860")
 SECOND_SESSION_BASE_SUBJECT = "\ud68c\uacc4\ud559\uac1c\ub860"
@@ -174,6 +176,27 @@ def main() -> None:
         help="Years to load.",
     )
     parser.add_argument("--db-path", default="data/questions.db", help="SQLite DB path.")
+    parser.add_argument(
+        "--gemini-fill-missing",
+        action="store_true",
+        help="After PDF load, fill missing answers/explanations via Gemini API.",
+    )
+    parser.add_argument("--gemini-api-key", default="", help="Gemini API key.")
+    parser.add_argument(
+        "--gemini-api-key-file",
+        default="config/gemini_api_key.txt",
+        help="Gemini API key file path (used if --gemini-api-key is empty).",
+    )
+    parser.add_argument("--gemini-model", default="gemini-1.5-pro", help="Gemini model name.")
+    parser.add_argument(
+        "--gemini-api-url",
+        default="https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        help="Gemini API endpoint template.",
+    )
+    parser.add_argument("--gemini-batch-size", type=int, default=10, help="Gemini request batch size.")
+    parser.add_argument("--gemini-max-batches", type=int, default=0, help="0 means process all batches.")
+    parser.add_argument("--gemini-sleep-sec", type=float, default=1.0, help="Sleep seconds between Gemini batches.")
+    parser.add_argument("--gemini-retries", type=int, default=2, help="Retries per Gemini batch.")
     args = parser.parse_args()
 
     base = load_base_parser_module()
@@ -194,6 +217,7 @@ def main() -> None:
     conn = sqlite3.connect(db_path)
     try:
         base.ensure_schema(conn)
+        ensure_answered_column(conn)
         base.upsert_questions(conn, all_rows)
         conn.commit()
     finally:
@@ -202,7 +226,23 @@ def main() -> None:
     print(f"DB upsert complete: {db_path}")
     print_summary(all_rows)
 
+    if args.gemini_fill_missing:
+        api_key = load_api_key(
+            args.gemini_api_key,
+            Path(args.gemini_api_key_file) if args.gemini_api_key_file else None,
+        )
+        enrich_missing_answers(
+            db_path=db_path,
+            years=list(args.years),
+            api_key=api_key,
+            model=args.gemini_model,
+            api_url=args.gemini_api_url,
+            batch_size=args.gemini_batch_size,
+            max_batches=args.gemini_max_batches,
+            sleep_sec=args.gemini_sleep_sec,
+            retries=args.gemini_retries,
+        )
+
 
 if __name__ == "__main__":
     main()
-

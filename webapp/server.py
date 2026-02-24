@@ -24,6 +24,7 @@ SUBJECTS = (
 )
 IMPORTANCE_LEVELS = ("red", "yellow", "green", "gray")
 DEFAULT_IMPORTANCE = "green"
+DEFAULT_USER_ID = "guest"
 
 TABLE_QUESTIONS = "문제"
 TABLE_OX = "문제_OX"
@@ -52,6 +53,7 @@ COL_OX_EXPLANATION = "해설"
 COL_NOTE_IMPORTANCE = "중요도"
 COL_NOTE_COMMENT = "코멘트"
 COL_NOTE_UPDATED = "수정일시"
+COL_NOTE_USER = "user_id"
 COL_META_KEY = "meta_key"
 COL_META_VALUE = "meta_value"
 FIRST_RUN_INIT_KEY = "first_run_user_note_reset_done"
@@ -170,6 +172,89 @@ def repair_known_artifacts(
     return stem, options
 
 
+def normalize_user_id(value: str) -> str:
+    normalized = (value or "").strip()
+    if not normalized:
+        return DEFAULT_USER_ID
+    if len(normalized) > 64:
+        return normalized[:64]
+    return normalized
+
+
+def ensure_wrong_note_schema(conn: sqlite3.Connection) -> None:
+    columns = {row[1] for row in conn.execute(f'PRAGMA table_info("{TABLE_WRONG_NOTE}")')}
+    has_user_col = COL_NOTE_USER in columns
+
+    unique_ok = False
+    for index in conn.execute(f'PRAGMA index_list("{TABLE_WRONG_NOTE}")').fetchall():
+        if int(index[2]) != 1:
+            continue
+        index_name = str(index[1])
+        index_columns = [row[2] for row in conn.execute(f'PRAGMA index_info("{index_name}")').fetchall()]
+        if index_columns == [COL_NOTE_USER, COL_YEAR, COL_SUBJECT, COL_QNO]:
+            unique_ok = True
+            break
+
+    if has_user_col and unique_ok:
+        return
+
+    legacy_table = f"{TABLE_WRONG_NOTE}_legacy"
+    conn.execute(f'DROP TABLE IF EXISTS "{legacy_table}"')
+    conn.execute(f'ALTER TABLE "{TABLE_WRONG_NOTE}" RENAME TO "{legacy_table}"')
+    conn.execute(
+        f"""
+        CREATE TABLE "{TABLE_WRONG_NOTE}" (
+            오답노트id INTEGER PRIMARY KEY AUTOINCREMENT,
+            "{COL_NOTE_USER}" TEXT NOT NULL DEFAULT '{DEFAULT_USER_ID}',
+            "{COL_YEAR}" INTEGER NOT NULL,
+            "{COL_SUBJECT}" TEXT NOT NULL,
+            "{COL_QNO}" INTEGER NOT NULL,
+            "{COL_NOTE_IMPORTANCE}" TEXT NOT NULL DEFAULT '{DEFAULT_IMPORTANCE}',
+            "{COL_NOTE_COMMENT}" TEXT NOT NULL DEFAULT '',
+            "{COL_NOTE_UPDATED}" TEXT NOT NULL,
+            UNIQUE ("{COL_NOTE_USER}", "{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}")
+        )
+        """
+    )
+
+    legacy_columns = {row[1] for row in conn.execute(f'PRAGMA table_info("{legacy_table}")')}
+    if COL_NOTE_USER in legacy_columns:
+        conn.execute(
+            f"""
+            INSERT INTO "{TABLE_WRONG_NOTE}"
+            ("{COL_NOTE_USER}", "{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}", "{COL_NOTE_IMPORTANCE}", "{COL_NOTE_COMMENT}", "{COL_NOTE_UPDATED}")
+            SELECT
+                COALESCE(NULLIF(TRIM("{COL_NOTE_USER}"), ''), ?),
+                "{COL_YEAR}",
+                "{COL_SUBJECT}",
+                "{COL_QNO}",
+                "{COL_NOTE_IMPORTANCE}",
+                "{COL_NOTE_COMMENT}",
+                "{COL_NOTE_UPDATED}"
+            FROM "{legacy_table}"
+            """,
+            (DEFAULT_USER_ID,),
+        )
+    else:
+        conn.execute(
+            f"""
+            INSERT INTO "{TABLE_WRONG_NOTE}"
+            ("{COL_NOTE_USER}", "{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}", "{COL_NOTE_IMPORTANCE}", "{COL_NOTE_COMMENT}", "{COL_NOTE_UPDATED}")
+            SELECT
+                ?,
+                "{COL_YEAR}",
+                "{COL_SUBJECT}",
+                "{COL_QNO}",
+                "{COL_NOTE_IMPORTANCE}",
+                "{COL_NOTE_COMMENT}",
+                "{COL_NOTE_UPDATED}"
+            FROM "{legacy_table}"
+            """,
+            (DEFAULT_USER_ID,),
+        )
+    conn.execute(f'DROP TABLE "{legacy_table}"')
+
+
 def ensure_app_tables(conn: sqlite3.Connection) -> None:
     conn.execute(
         f"""
@@ -189,16 +274,18 @@ def ensure_app_tables(conn: sqlite3.Connection) -> None:
         f"""
         CREATE TABLE IF NOT EXISTS "{TABLE_WRONG_NOTE}" (
             오답노트id INTEGER PRIMARY KEY AUTOINCREMENT,
+            "{COL_NOTE_USER}" TEXT NOT NULL DEFAULT '{DEFAULT_USER_ID}',
             "{COL_YEAR}" INTEGER NOT NULL,
             "{COL_SUBJECT}" TEXT NOT NULL,
             "{COL_QNO}" INTEGER NOT NULL,
             "{COL_NOTE_IMPORTANCE}" TEXT NOT NULL DEFAULT '{DEFAULT_IMPORTANCE}',
             "{COL_NOTE_COMMENT}" TEXT NOT NULL DEFAULT '',
             "{COL_NOTE_UPDATED}" TEXT NOT NULL,
-            UNIQUE ("{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}")
+            UNIQUE ("{COL_NOTE_USER}", "{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}")
         )
         """
     )
+    ensure_wrong_note_schema(conn)
     conn.execute(
         f"""
         CREATE TABLE IF NOT EXISTS "{TABLE_APP_META}" (
@@ -348,7 +435,7 @@ def fetch_ox_questions(year: int, subject: str) -> list[dict]:
     ]
 
 
-def fetch_wrong_note_map(year: int, subject: str) -> dict[str, dict]:
+def fetch_wrong_note_map(year: int, subject: str, user_id: str) -> dict[str, dict]:
     if not DB_PATH.exists():
         return {}
     conn = sqlite3.connect(DB_PATH)
@@ -357,9 +444,9 @@ def fetch_wrong_note_map(year: int, subject: str) -> dict[str, dict]:
         sql = f"""
             SELECT "{COL_QNO}", "{COL_NOTE_IMPORTANCE}", "{COL_NOTE_COMMENT}", "{COL_NOTE_UPDATED}"
             FROM "{TABLE_WRONG_NOTE}"
-            WHERE "{COL_YEAR}" = ? AND "{COL_SUBJECT}" = ?
+            WHERE "{COL_NOTE_USER}" = ? AND "{COL_YEAR}" = ? AND "{COL_SUBJECT}" = ?
         """
-        rows = conn.execute(sql, (year, subject)).fetchall()
+        rows = conn.execute(sql, (normalize_user_id(user_id), year, subject)).fetchall()
     finally:
         conn.close()
     result: dict[str, dict] = {}
@@ -375,7 +462,13 @@ def fetch_wrong_note_map(year: int, subject: str) -> dict[str, dict]:
     return result
 
 
-def fetch_wrong_notes(*, subject: str = "", importance: str = "", comment: str = "") -> list[dict]:
+def fetch_wrong_notes(
+    *,
+    user_id: str,
+    subject: str = "",
+    importance: str = "",
+    comment: str = "",
+) -> list[dict]:
     if not DB_PATH.exists():
         return []
     conn = sqlite3.connect(DB_PATH)
@@ -383,6 +476,8 @@ def fetch_wrong_notes(*, subject: str = "", importance: str = "", comment: str =
         ensure_app_tables(conn)
         filters: list[str] = []
         params: list[object] = []
+        filters.append(f'n."{COL_NOTE_USER}" = ?')
+        params.append(normalize_user_id(user_id))
         if subject:
             filters.append(f'n."{COL_SUBJECT}" = ?')
             params.append(subject)
@@ -437,7 +532,16 @@ def fetch_wrong_notes(*, subject: str = "", importance: str = "", comment: str =
     return results
 
 
-def upsert_wrong_note(*, year: int, subject: str, question_no: int, importance: str, comment: str) -> None:
+def upsert_wrong_note(
+    *,
+    user_id: str,
+    year: int,
+    subject: str,
+    question_no: int,
+    importance: str,
+    comment: str,
+) -> None:
+    normalized_user_id = normalize_user_id(user_id)
     raw_importance = (importance or "").strip().lower()
     normalized_importance = raw_importance if raw_importance in IMPORTANCE_LEVELS else DEFAULT_IMPORTANCE
     normalized_comment = normalize_question_text(comment or "")
@@ -450,23 +554,31 @@ def upsert_wrong_note(*, year: int, subject: str, question_no: int, importance: 
             conn.execute(
                 f"""
                 DELETE FROM "{TABLE_WRONG_NOTE}"
-                WHERE "{COL_YEAR}" = ? AND "{COL_SUBJECT}" = ? AND "{COL_QNO}" = ?
+                WHERE "{COL_NOTE_USER}" = ? AND "{COL_YEAR}" = ? AND "{COL_SUBJECT}" = ? AND "{COL_QNO}" = ?
                 """,
-                (year, subject, question_no),
+                (normalized_user_id, year, subject, question_no),
             )
         else:
             conn.execute(
                 f"""
                 INSERT INTO "{TABLE_WRONG_NOTE}"
-                ("{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}", "{COL_NOTE_IMPORTANCE}", "{COL_NOTE_COMMENT}", "{COL_NOTE_UPDATED}")
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT("{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}")
+                ("{COL_NOTE_USER}", "{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}", "{COL_NOTE_IMPORTANCE}", "{COL_NOTE_COMMENT}", "{COL_NOTE_UPDATED}")
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT("{COL_NOTE_USER}", "{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}")
                 DO UPDATE SET
                     "{COL_NOTE_IMPORTANCE}" = excluded."{COL_NOTE_IMPORTANCE}",
                     "{COL_NOTE_COMMENT}" = excluded."{COL_NOTE_COMMENT}",
                     "{COL_NOTE_UPDATED}" = excluded."{COL_NOTE_UPDATED}"
                 """,
-                (year, subject, question_no, normalized_importance, normalized_comment, updated_at),
+                (
+                    normalized_user_id,
+                    year,
+                    subject,
+                    question_no,
+                    normalized_importance,
+                    normalized_comment,
+                    updated_at,
+                ),
             )
         conn.commit()
     finally:
@@ -545,6 +657,7 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def handle_wrong_notes_api(self, query: str) -> None:
         params = parse_qs(query)
+        user_id = normalize_user_id((params.get("user_id") or [""])[0])
         subject = (params.get("subject") or [""])[0]
         importance = (params.get("importance") or [""])[0].lower()
         comment = (params.get("comment") or [""])[0]
@@ -554,11 +667,12 @@ class AppHandler(SimpleHTTPRequestHandler):
         if importance and importance not in IMPORTANCE_LEVELS:
             make_json_response(self, {"error": "invalid importance"}, status=HTTPStatus.BAD_REQUEST)
             return
-        notes = fetch_wrong_notes(subject=subject, importance=importance, comment=comment)
-        make_json_response(self, {"count": len(notes), "items": notes})
+        notes = fetch_wrong_notes(user_id=user_id, subject=subject, importance=importance, comment=comment)
+        make_json_response(self, {"user_id": user_id, "count": len(notes), "items": notes})
 
     def handle_wrong_notes_map_api(self, query: str) -> None:
         params = parse_qs(query)
+        user_id = normalize_user_id((params.get("user_id") or [""])[0])
         year_text = (params.get("year") or [""])[0]
         subject = (params.get("subject") or [""])[0]
         try:
@@ -569,8 +683,8 @@ class AppHandler(SimpleHTTPRequestHandler):
         if subject not in SUBJECTS:
             make_json_response(self, {"error": "invalid subject"}, status=HTTPStatus.BAD_REQUEST)
             return
-        note_map = fetch_wrong_note_map(year, subject)
-        make_json_response(self, {"year": year, "subject": subject, "items": note_map})
+        note_map = fetch_wrong_note_map(year, subject, user_id)
+        make_json_response(self, {"user_id": user_id, "year": year, "subject": subject, "items": note_map})
 
     def handle_wrong_note_upsert_api(self) -> None:
         try:
@@ -594,16 +708,18 @@ class AppHandler(SimpleHTTPRequestHandler):
         if subject not in SUBJECTS:
             make_json_response(self, {"error": "invalid subject"}, status=HTTPStatus.BAD_REQUEST)
             return
+        user_id = normalize_user_id(str(payload.get("user_id") or ""))
         importance = str(payload.get("importance") or "")
         comment = str(payload.get("comment") or "")
         upsert_wrong_note(
+            user_id=user_id,
             year=year,
             subject=subject,
             question_no=question_no,
             importance=importance,
             comment=comment,
         )
-        make_json_response(self, {"ok": True})
+        make_json_response(self, {"ok": True, "user_id": user_id})
 
 
 def main() -> None:

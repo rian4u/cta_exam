@@ -1052,6 +1052,8 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     columns = {row[1] for row in conn.execute('PRAGMA table_info("문제")')}
     if "렌더_마크업" not in columns:
         conn.execute('ALTER TABLE "문제" ADD COLUMN "렌더_마크업" TEXT')
+    if "답변여부" not in columns:
+        conn.execute('ALTER TABLE "문제" ADD COLUMN "답변여부" INTEGER NOT NULL DEFAULT 0')
     conn.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_문제_출제연도_과목
