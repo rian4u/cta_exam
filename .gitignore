@@ -1,0 +1,15 @@
+# Secrets
+config/openai_api_key.txt
+
+# Python cache
+**/__pycache__/
+*.pyc
+
+# Local datasets (keep the app DB only)
+data/2021/
+data/2022/
+data/2023/
+data/2024/
+data/2025/
+!data/questions.db
+

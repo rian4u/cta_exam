@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>OX모드 | 세무사 기출 돌돌이</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=Manrope:wght@500;600;700;800&family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [["\\(", "\\)"], ["$", "$"]],
+          displayMath: [["\\[", "\\]"]],
+          processEscapes: true,
+        },
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="phone mock-root">
+      <header class="phone-header">
+        <button
+          type="button"
+          class="top-back-btn"
+          aria-label="이전"
+          onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href='./index.html'; }"
+        >
+          <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+            <path
+              d="M7.8 7.2V3.8a1 1 0 0 0-1.7-.7L1.8 7.4a1 1 0 0 0 0 1.4l4.3 4.3a1 1 0 0 0 1.7-.7V9.2c5 0 8.9 1.9 11.8 6.5a1 1 0 0 0 1.8-.8C19.4 8.9 14.7 6.8 7.8 7.2z"
+            />
+          </svg>
+        </button>
+        <a class="top-home-btn" href="./index.html" aria-label="홈">
+          <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+            <path
+              d="M12 3.2 3.5 9.8a1 1 0 1 0 1.2 1.6l.8-.6v8.2a1 1 0 0 0 1 1h4.9a1 1 0 0 0 1-1v-4.7h1.2V19a1 1 0 0 0 1 1h4.9a1 1 0 0 0 1-1v-8.2l.8.6a1 1 0 0 0 1.2-1.6L12 3.2z"
+            />
+          </svg>
+        </a>
+        <h1 class="title">세무사 기출 돌돌이</h1>
+        <p class="title-quote">될 때까지 하지 않아서 되지 않는 것이다</p>
+      </header>
+
+      <section class="exam-content">
+        <div id="ox-setup-panel" class="setup-panel">
+          <div class="setup-card">
+            <h2>과목 선택</h2>
+            <div id="ox-subject-grid" class="choice-grid"></div>
+          </div>
+          <p id="ox-setup-message" class="setup-message"></p>
+          <div class="start-wrap">
+            <button id="ox-start-button" class="start-button" disabled>시작하기</button>
+          </div>
+        </div>
+
+        <div id="ox-exam-panel" class="exam-panel hidden">
+          <div class="exam-top">
+            <span id="ox-exam-label" class="exam-label"></span>
+            <div id="ox-filter-traffic-group" class="traffic-group ox-filter-traffic">
+              <button type="button" class="traffic-btn traffic-red active" data-filter="red" aria-label="빨강"></button>
+              <button type="button" class="traffic-btn traffic-yellow active" data-filter="yellow" aria-label="노랑"></button>
+              <button type="button" class="traffic-btn traffic-green active" data-filter="green" aria-label="초록"></button>
+              <button type="button" class="traffic-btn traffic-gray active" data-filter="gray" aria-label="회색"></button>
+            </div>
+            <span id="ox-exam-dday" class="exam-dday"></span>
+          </div>
+
+          <article id="ox-question-panel" class="question-panel ox-question-panel">
+            <div id="ox-status-question" class="question-stem"></div>
+          </article>
+
+          <article id="ox-option-panel" class="option-panel ox-option-panel">
+            <div id="ox-option-list" class="ox-option-list"></div>
+          </article>
+
+          <article id="ox-explain-popup" class="explain-popup hidden" aria-live="polite">
+            <div class="explain-popup-head">
+              <div id="ox-traffic-group" class="traffic-group" aria-label="OX 문제 태그 색상">
+                <button type="button" class="traffic-btn traffic-red" data-traffic="red" aria-label="빨강"></button>
+                <button type="button" class="traffic-btn traffic-yellow" data-traffic="yellow" aria-label="노랑"></button>
+                <button type="button" class="traffic-btn traffic-green" data-traffic="green" aria-label="초록"></button>
+                <button type="button" class="traffic-btn traffic-gray" data-traffic="gray" aria-label="회색"></button>
+              </div>
+              <button id="ox-explain-close-top" type="button" class="explain-close-btn">닫기</button>
+            </div>
+            <div id="ox-explain-popup-body" class="explain-popup-body"></div>
+            <div class="ox-explain-actions">
+              <button id="ox-explain-close" type="button" class="explain-close-btn">다음</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <footer class="phone-footer">
+        <div class="footer-meta">
+          <span>Copyright 도로파파</span>
+          <a href="https://blog.naver.com/rian4u" target="_blank" rel="noopener noreferrer">blog.naver.com/rian4u</a>
+        </div>
+        <div class="footer-controls">
+          <button type="button" class="skin-nav skin-prev" aria-label="이전 스킨">◀</button>
+          <span class="skin-label">스킨 1</span>
+          <button type="button" class="skin-nav skin-next" aria-label="다음 스킨">▶</button>
+        </div>
+      </footer>
+    </main>
+
+    <script src="./skin.js"></script>
+    <script type="module" src="./ox-mode.js"></script>
+  </body>
+</html>

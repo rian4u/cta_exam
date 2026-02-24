@@ -1,0 +1,20 @@
+# Ignore everything by default
+*
+
+# Keep deployment manifests
+!.dockerignore
+!Dockerfile
+!render.yaml
+
+# Keep runtime app files
+!webapp/
+!webapp/**
+!data/
+!data/questions.db
+
+# Re-ignore development artifacts
+webapp/__pycache__/
+webapp/*.pyc
+data/**/__pycache__/
+data/**/*.pyc
+

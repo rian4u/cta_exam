@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: tax-exam3
+    env: docker
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+
