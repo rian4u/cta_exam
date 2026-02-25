@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sqlite3
 from datetime import datetime
@@ -23,13 +24,15 @@ SUBJECTS = (
     "행정소송법",
 )
 IMPORTANCE_LEVELS = ("red", "yellow", "green", "gray")
-DEFAULT_IMPORTANCE = "green"
+DEFAULT_IMPORTANCE = ""
 DEFAULT_USER_ID = "guest"
+NOTICE_ADMIN_KEY = os.getenv("NOTICE_ADMIN_KEY", "").strip()
 
 TABLE_QUESTIONS = "문제"
 TABLE_OX = "문제_OX"
 TABLE_WRONG_NOTE = "오답노트"
 TABLE_APP_META = "app_meta"
+TABLE_NOTICE = "공지게시판"
 
 COL_QNO = "문제번호"
 COL_STEM = "문제지문"
@@ -57,6 +60,14 @@ COL_NOTE_USER = "user_id"
 COL_META_KEY = "meta_key"
 COL_META_VALUE = "meta_value"
 FIRST_RUN_INIT_KEY = "first_run_user_note_reset_done"
+
+COL_NOTICE_ID = "notice_id"
+COL_NOTICE_TITLE = "title"
+COL_NOTICE_BODY = "body"
+COL_NOTICE_AUTHOR = "author"
+COL_NOTICE_PUBLISHED = "is_published"
+COL_NOTICE_CREATED = "created_at"
+COL_NOTICE_UPDATED = "updated_at"
 
 PUA_TRANSLATION = str.maketrans(
     {
@@ -294,6 +305,37 @@ def ensure_app_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    conn.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS "{TABLE_NOTICE}" (
+            "{COL_NOTICE_ID}" INTEGER PRIMARY KEY AUTOINCREMENT,
+            "{COL_NOTICE_TITLE}" TEXT NOT NULL,
+            "{COL_NOTICE_BODY}" TEXT NOT NULL,
+            "{COL_NOTICE_AUTHOR}" TEXT NOT NULL DEFAULT '관리자',
+            "{COL_NOTICE_PUBLISHED}" INTEGER NOT NULL DEFAULT 1,
+            "{COL_NOTICE_CREATED}" TEXT NOT NULL,
+            "{COL_NOTICE_UPDATED}" TEXT NOT NULL
+        )
+        """
+    )
+    notice_count = conn.execute(f'SELECT COUNT(*) FROM "{TABLE_NOTICE}"').fetchone()[0]
+    if int(notice_count) == 0:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            f"""
+            INSERT INTO "{TABLE_NOTICE}"
+            ("{COL_NOTICE_TITLE}", "{COL_NOTICE_BODY}", "{COL_NOTICE_AUTHOR}", "{COL_NOTICE_PUBLISHED}", "{COL_NOTICE_CREATED}", "{COL_NOTICE_UPDATED}")
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "공지",
+                "문제/해설 데이터는 순차적으로 오픈됩니다.\n현재 모의고사 연도 선택은 2023~2025년이 활성화되어 있습니다.",
+                "관리자",
+                1,
+                now,
+                now,
+            ),
+        )
     initialized = conn.execute(
         f'SELECT 1 FROM "{TABLE_APP_META}" WHERE "{COL_META_KEY}" = ? LIMIT 1',
         (FIRST_RUN_INIT_KEY,),
@@ -433,6 +475,110 @@ def fetch_ox_questions(year: int, subject: str) -> list[dict]:
         }
         for qno, question, answer, explanation in rows
     ]
+
+
+def fetch_notices(*, include_unpublished: bool = False) -> list[dict]:
+    if not DB_PATH.exists():
+        return []
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        ensure_app_tables(conn)
+        filters = []
+        params: list[object] = []
+        if not include_unpublished:
+            filters.append(f'"{COL_NOTICE_PUBLISHED}" = 1')
+        where_clause = f'WHERE {" AND ".join(filters)}' if filters else ""
+        sql = f"""
+            SELECT
+                "{COL_NOTICE_ID}",
+                "{COL_NOTICE_TITLE}",
+                "{COL_NOTICE_BODY}",
+                "{COL_NOTICE_AUTHOR}",
+                "{COL_NOTICE_PUBLISHED}",
+                "{COL_NOTICE_CREATED}",
+                "{COL_NOTICE_UPDATED}"
+            FROM "{TABLE_NOTICE}"
+            {where_clause}
+            ORDER BY "{COL_NOTICE_CREATED}" DESC, "{COL_NOTICE_ID}" DESC
+        """
+        rows = conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+    return [
+        {
+            "notice_id": int(notice_id),
+            "title": normalize_question_text(title or ""),
+            "body": normalize_question_text(body or ""),
+            "author": normalize_question_text(author or ""),
+            "is_published": int(is_published or 0),
+            "created_at": created_at or "",
+            "updated_at": updated_at or "",
+        }
+        for notice_id, title, body, author, is_published, created_at, updated_at in rows
+    ]
+
+
+def upsert_notice(
+    *,
+    title: str,
+    body: str,
+    author: str,
+    is_published: int,
+    notice_id: int | None = None,
+) -> dict:
+    normalized_title = normalize_question_text(title or "")
+    normalized_body = normalize_question_text(body or "")
+    normalized_author = normalize_question_text(author or "") or "관리자"
+    published_value = 1 if int(is_published or 0) else 0
+
+    if not normalized_title or not normalized_body:
+        raise ValueError("title/body required")
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        ensure_app_tables(conn)
+        if notice_id is None:
+            cursor = conn.execute(
+                f"""
+                INSERT INTO "{TABLE_NOTICE}"
+                ("{COL_NOTICE_TITLE}", "{COL_NOTICE_BODY}", "{COL_NOTICE_AUTHOR}", "{COL_NOTICE_PUBLISHED}", "{COL_NOTICE_CREATED}", "{COL_NOTICE_UPDATED}")
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (normalized_title, normalized_body, normalized_author, published_value, now, now),
+            )
+            notice_id = int(cursor.lastrowid)
+        else:
+            conn.execute(
+                f"""
+                UPDATE "{TABLE_NOTICE}"
+                SET "{COL_NOTICE_TITLE}" = ?,
+                    "{COL_NOTICE_BODY}" = ?,
+                    "{COL_NOTICE_AUTHOR}" = ?,
+                    "{COL_NOTICE_PUBLISHED}" = ?,
+                    "{COL_NOTICE_UPDATED}" = ?
+                WHERE "{COL_NOTICE_ID}" = ?
+                """,
+                (
+                    normalized_title,
+                    normalized_body,
+                    normalized_author,
+                    published_value,
+                    now,
+                    int(notice_id),
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "notice_id": int(notice_id),
+        "title": normalized_title,
+        "body": normalized_body,
+        "author": normalized_author,
+        "is_published": published_value,
+    }
 
 
 def fetch_wrong_note_map(year: int, subject: str, user_id: str) -> dict[str, dict]:
@@ -592,7 +738,7 @@ class AppHandler(SimpleHTTPRequestHandler):
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Notice-Admin-Key")
         super().end_headers()
 
     def do_OPTIONS(self) -> None:
@@ -614,6 +760,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/wrong-notes/map":
             self.handle_wrong_notes_map_api(parsed.query)
             return
+        if parsed.path == "/api/notices":
+            self.handle_notices_api(parsed.query)
+            return
         if parsed.path == "/api/health":
             make_json_response(self, {"ok": True})
             return
@@ -625,6 +774,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/wrong-notes":
             self.handle_wrong_note_upsert_api()
+            return
+        if parsed.path == "/api/notices":
+            self.handle_notice_upsert_api()
             return
         make_json_response(self, {"error": "not found"}, status=HTTPStatus.NOT_FOUND)
 
@@ -721,12 +873,87 @@ class AppHandler(SimpleHTTPRequestHandler):
         )
         make_json_response(self, {"ok": True, "user_id": user_id})
 
+    def handle_notices_api(self, query: str) -> None:
+        params = parse_qs(query)
+        admin_mode = str((params.get("admin") or [""])[0]).strip() in {"1", "true", "yes"}
+        include_unpublished = False
+        if admin_mode:
+            provided_key = str(self.headers.get("X-Notice-Admin-Key") or "").strip()
+            include_unpublished = bool(NOTICE_ADMIN_KEY) and provided_key == NOTICE_ADMIN_KEY
+        notices = fetch_notices(include_unpublished=include_unpublished)
+        make_json_response(
+            self,
+            {
+                "count": len(notices),
+                "items": notices,
+                "admin_mode": bool(include_unpublished),
+            },
+        )
+
+    def handle_notice_upsert_api(self) -> None:
+        if not NOTICE_ADMIN_KEY:
+            make_json_response(
+                self,
+                {"error": "notice admin key is not configured"},
+                status=HTTPStatus.SERVICE_UNAVAILABLE,
+            )
+            return
+
+        provided_key = str(self.headers.get("X-Notice-Admin-Key") or "").strip()
+        if provided_key != NOTICE_ADMIN_KEY:
+            make_json_response(self, {"error": "forbidden"}, status=HTTPStatus.FORBIDDEN)
+            return
+
+        try:
+            content_length = int(self.headers.get("Content-Length") or "0")
+        except ValueError:
+            make_json_response(self, {"error": "invalid content length"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        raw = self.rfile.read(content_length) if content_length > 0 else b"{}"
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            make_json_response(self, {"error": "invalid json"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        title = str(payload.get("title") or "")
+        body = str(payload.get("body") or "")
+        author = str(payload.get("author") or "")
+        published = int(payload.get("is_published") or 0)
+        notice_id_raw = payload.get("notice_id")
+        notice_id = None
+        if notice_id_raw is not None and str(notice_id_raw).strip():
+            try:
+                notice_id = int(notice_id_raw)
+            except ValueError:
+                make_json_response(self, {"error": "invalid notice_id"}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+        try:
+            saved = upsert_notice(
+                title=title,
+                body=body,
+                author=author,
+                is_published=published,
+                notice_id=notice_id,
+            )
+        except ValueError as error:
+            make_json_response(self, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        make_json_response(self, {"ok": True, "item": saved})
+
 
 def main() -> None:
+    global NOTICE_ADMIN_KEY
     parser = argparse.ArgumentParser(description="Tax exam local web server")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--notice-admin-key", default="", help="Admin key for posting notices")
     args = parser.parse_args()
+    if str(args.notice_admin_key or "").strip():
+        NOTICE_ADMIN_KEY = str(args.notice_admin_key).strip()
 
     with sqlite3.connect(DB_PATH) as conn:
         ensure_app_tables(conn)

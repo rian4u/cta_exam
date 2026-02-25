@@ -1,6 +1,7 @@
 const SUBJECTS = ["재정학", "세법학개론", "회계학개론", "상법", "민법", "행정소송법"];
-const USER_STORAGE_KEY = "taxexam:user-id";
-const DEFAULT_USER_ID = "guest";
+const USER_STORAGE_KEY = "taxexam:device-id";
+const LEGACY_USER_STORAGE_KEY = "taxexam:user-id";
+const DEFAULT_USER_ID = "";
 
 const state = {
   apiReady: false,
@@ -11,7 +12,6 @@ const state = {
 };
 const IMPORTANCE_LEVELS = new Set(["red", "yellow", "green", "gray"]);
 
-const userInput = document.getElementById("wrong-filter-user");
 const subjectSelect = document.getElementById("wrong-filter-subject");
 const trafficButtons = [...document.querySelectorAll("#wrong-filter-traffic .traffic-btn")];
 const commentInput = document.getElementById("wrong-filter-comment");
@@ -69,7 +69,7 @@ function normalizeImportance(value) {
   const normalized = String(value || "")
     .trim()
     .toLowerCase();
-  return IMPORTANCE_LEVELS.has(normalized) ? normalized : "green";
+  return IMPORTANCE_LEVELS.has(normalized) ? normalized : "";
 }
 
 function normalizeUserId(value) {
@@ -80,12 +80,18 @@ function normalizeUserId(value) {
   return normalized.slice(0, 64);
 }
 
+function generateDeviceId() {
+  try {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return `device-${window.crypto.randomUUID()}`;
+    }
+  } catch (_) {}
+  return `device-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function applyUserId(value, { persist = true } = {}) {
   const userId = normalizeUserId(value);
   state.userId = userId;
-  if (userInput && userInput.value !== userId) {
-    userInput.value = userId;
-  }
   if (persist) {
     try {
       localStorage.setItem(USER_STORAGE_KEY, userId);
@@ -96,12 +102,17 @@ function applyUserId(value, { persist = true } = {}) {
 function initUserId() {
   const storedUserId = (() => {
     try {
-      return localStorage.getItem(USER_STORAGE_KEY) || "";
+      return (
+        localStorage.getItem(USER_STORAGE_KEY) ||
+        localStorage.getItem(LEGACY_USER_STORAGE_KEY) ||
+        ""
+      );
     } catch (_) {
       return "";
     }
   })();
-  applyUserId(storedUserId, { persist: false });
+  const nextUserId = normalizeUserId(storedUserId) || generateDeviceId();
+  applyUserId(nextUserId);
 }
 
 function buildLight(importance) {
@@ -199,7 +210,10 @@ async function searchWrongNotes() {
   const items =
     state.selectedImportances.size === 0
       ? []
-      : rawItems.filter((item) => state.selectedImportances.has(normalizeImportance(item.importance)));
+      : rawItems.filter((item) => {
+          const importance = normalizeImportance(item.importance);
+          return !importance || state.selectedImportances.has(importance);
+        });
   renderResults(items);
   message.textContent = `검색 결과 ${items.length}건`;
 }
@@ -214,12 +228,6 @@ function scheduleSearch() {
 }
 
 function bindEvents() {
-  if (userInput) {
-    userInput.addEventListener("change", () => {
-      applyUserId(userInput.value);
-      scheduleSearch();
-    });
-  }
   subjectSelect.addEventListener("change", scheduleSearch);
   commentInput.addEventListener("input", scheduleSearch);
 

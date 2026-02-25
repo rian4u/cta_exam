@@ -39,10 +39,24 @@
       </header>
 
       <section class="sub-page">
-        <div class="setup-card">
-          <h2>공지</h2>
-          <p>문제/해설 데이터는 순차적으로 오픈됩니다.</p>
-          <p>현재 모의고사 연도 선택은 2025년만 활성화되어 있습니다.</p>
+        <div class="setup-card notice-board-card">
+          <h2>공지 게시판</h2>
+          <p id="notice-message" class="setup-message"></p>
+          <ul id="notice-list" class="notice-list"></ul>
+        </div>
+
+        <div id="notice-admin-card" class="setup-card notice-admin-card hidden">
+          <h2>공지 작성 (관리자)</h2>
+          <input id="notice-admin-key" class="wrong-input" type="password" placeholder="관리자 키" />
+          <input id="notice-title" class="wrong-input" type="text" maxlength="120" placeholder="제목" />
+          <textarea id="notice-body" class="wrong-input notice-body" rows="8" placeholder="내용"></textarea>
+          <div class="notice-admin-actions">
+            <label class="notice-publish-label">
+              <input id="notice-published" type="checkbox" checked />
+              게시
+            </label>
+            <button id="notice-save" class="start-button" type="button">등록</button>
+          </div>
         </div>
       </section>
 
@@ -60,6 +74,6 @@
     </main>
 
     <script src="./skin.js"></script>
+    <script type="module" src="./notice.js"></script>
   </body>
 </html>
-

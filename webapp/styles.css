@@ -1187,13 +1187,9 @@ body.skin-3 .footer-main-btn {
 
 .wrong-filter-inline {
   display: grid;
-  grid-template-columns: minmax(0, 112px) minmax(0, 112px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
   gap: 8px;
   align-items: center;
-}
-
-.wrong-inline-user {
-  min-width: 0;
 }
 
 .wrong-inline-subject {
@@ -1218,6 +1214,79 @@ body.skin-3 .footer-main-btn {
 
 .wrong-result-head h2 {
   margin: 0;
+}
+
+.notice-board-card {
+  display: grid;
+  gap: 10px;
+}
+
+.notice-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.notice-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(155, 225, 190, 0.4);
+  background: rgba(9, 42, 28, 0.34);
+}
+
+.notice-title {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.notice-meta {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--text-sub);
+}
+
+.notice-body-text {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.notice-empty {
+  padding: 14px 10px;
+  border-radius: 10px;
+  text-align: center;
+  color: var(--text-sub);
+  border: 1px dashed rgba(155, 225, 190, 0.35);
+}
+
+.notice-admin-card {
+  display: grid;
+  gap: 8px;
+}
+
+.notice-body {
+  min-height: 180px;
+  resize: vertical;
+}
+
+.notice-admin-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.notice-publish-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
 }
 
 .wrong-result-head .traffic-group {

@@ -1,11 +1,12 @@
-const SUBJECTS = ["재정학", "세법학개론", "회계학개론", "상법", "민법", "행정소송법"];
+﻿const SUBJECTS = ["재정학", "세법학개론", "회계학개론", "상법", "민법", "행정소송법"];
 const YEARS = [2025, 2024, 2023, 2022, 2021, 2020];
-const OPEN_YEARS = new Set([2025]);
+const OPEN_YEARS = new Set([2025, 2024, 2023]);
 const TAX_EXAM_DATE_2026 = new Date(2026, 3, 25);
-const DEFAULT_IMPORTANCE = "green";
+const DEFAULT_IMPORTANCE = "";
 const IMPORTANCE_LEVELS = new Set(["red", "yellow", "green", "gray"]);
-const USER_STORAGE_KEY = "taxexam:user-id";
-const DEFAULT_USER_ID = "guest";
+const USER_STORAGE_KEY = "taxexam:device-id";
+const LEGACY_USER_STORAGE_KEY = "taxexam:user-id";
+const DEFAULT_USER_ID = "";
 
 const TEXT = {
   explainOpen: "해설보기",
@@ -21,7 +22,7 @@ const TEXT = {
     "문제 데이터를 불러오지 못했습니다. webapp/server.py 서버를 확인해 주세요.",
   apiNotReady:
     "DB API에 연결되지 않았습니다. webapp/server.py 서버를 실행한 후 다시 시도해 주세요.",
-  yearLocked: "현재는 2025년만 오픈되어 있습니다.",
+  yearLocked: "현재는 2023~2025년만 오픈되어 있습니다.",
   yearSuffix: "년",
 };
 
@@ -51,7 +52,6 @@ const examPanel = document.getElementById("exam-panel");
 const phoneRoot = document.querySelector(".phone");
 const subjectGrid = document.getElementById("subject-grid");
 const yearGrid = document.getElementById("year-grid");
-const userIdInput = document.getElementById("user-id-input");
 const startButton = document.getElementById("start-button");
 const setupMessage = document.getElementById("setup-message");
 const examLabel = document.getElementById("exam-label");
@@ -110,12 +110,18 @@ function normalizeUserId(value) {
   return normalized.slice(0, 64);
 }
 
+function generateDeviceId() {
+  try {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return `device-${window.crypto.randomUUID()}`;
+    }
+  } catch (_) {}
+  return `device-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function applyUserId(value, { persist = true } = {}) {
   const userId = normalizeUserId(value);
   state.userId = userId;
-  if (userIdInput && userIdInput.value !== userId) {
-    userIdInput.value = userId;
-  }
   if (persist) {
     try {
       localStorage.setItem(USER_STORAGE_KEY, userId);
@@ -126,12 +132,17 @@ function applyUserId(value, { persist = true } = {}) {
 function initUserId() {
   const storedUserId = (() => {
     try {
-      return localStorage.getItem(USER_STORAGE_KEY) || "";
+      return (
+        localStorage.getItem(USER_STORAGE_KEY) ||
+        localStorage.getItem(LEGACY_USER_STORAGE_KEY) ||
+        ""
+      );
     } catch (_) {
       return "";
     }
   })();
-  applyUserId(storedUserId, { persist: false });
+  const nextUserId = normalizeUserId(storedUserId) || generateDeviceId();
+  applyUserId(nextUserId);
 }
 
 function isYearEnabled(year) {
@@ -929,15 +940,6 @@ async function init() {
   await verifyApiReady();
   initCalculator();
   initExplanationEvents();
-  if (userIdInput) {
-    userIdInput.addEventListener("change", async () => {
-      applyUserId(userIdInput.value);
-      if (state.selectedSubject && state.selectedYear && state.apiReady) {
-        await loadWrongNotesFromDb();
-        renderExam();
-      }
-    });
-  }
   renderExamDday();
   showSetupPanel();
   refreshStartButton();
@@ -959,3 +961,4 @@ async function init() {
 }
 
 init();
+
