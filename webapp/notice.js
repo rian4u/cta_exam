@@ -48,7 +48,7 @@ function renderNotices(items) {
   if (!items.length) {
     const empty = document.createElement("li");
     empty.className = "notice-empty";
-    empty.textContent = "등록된 공지가 없습니다.";
+    empty.textContent = "??? ??? ????.";
     list.appendChild(empty);
     return;
   }
@@ -56,20 +56,40 @@ function renderNotices(items) {
     const row = document.createElement("li");
     row.className = "notice-item";
 
+    const details = document.createElement("details");
+    details.className = "notice-disclosure";
+
+    const summary = document.createElement("summary");
+    summary.className = "notice-summary";
+
+    const summaryMain = document.createElement("div");
+    summaryMain.className = "notice-summary-main";
+
+    const date = document.createElement("span");
+    date.className = "notice-date";
+    date.textContent = String(item.updated_at || item.created_at || "-").slice(0, 10);
+
+    const textWrap = document.createElement("div");
+    textWrap.className = "notice-summary-text";
+
     const title = document.createElement("h3");
     title.className = "notice-title";
-    const titleSuffix = Number(item.is_published) === 1 ? "" : " (비공개)";
-    title.textContent = `${item.title || "(제목 없음)"}${titleSuffix}`;
+    const titleSuffix = Number(item.is_published) === 1 ? "" : " (???)";
+    title.textContent = `${item.title || "(?? ??)"}${titleSuffix}`;
 
     const meta = document.createElement("div");
     meta.className = "notice-meta";
-    meta.textContent = `${item.author || "관리자"} · ${item.updated_at || item.created_at || "-"}`;
+    meta.textContent = `${item.author || "???"}`;
 
     const body = document.createElement("p");
     body.className = "notice-body-text";
     body.textContent = item.body || "";
 
-    row.append(title, meta, body);
+    textWrap.append(title, meta);
+    summaryMain.append(date, textWrap);
+    summary.append(summaryMain);
+    details.append(summary, body);
+    row.append(details);
     list.appendChild(row);
   });
 }

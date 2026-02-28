@@ -3,17 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>게임 | 세무사 기출 돌돌이</title>
+    <title>OX 낙하 게임 | 세무사 기출 돌돌이</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=Manrope:wght@500;600;700;800&family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=Manrope:wght@500;600;700;800&family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700;800&family=Press+Start+2P&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="phone">
+    <main class="phone game-page-shell">
       <header class="phone-header">
         <button
           type="button"
@@ -35,29 +35,153 @@
           </svg>
         </a>
         <h1 class="title">세무사 기출 돌돌이</h1>
-        <p class="title-quote">게임</p>
+        <p class="title-quote">될 때까지 하지 않아서 되지 않는 것이다</p>
       </header>
 
-      <section class="sub-page">
-        <div class="setup-card">
-          <h2>준비하지 않습니다</h2>
-          <p>이런거 누를 시간에 공부하세요!</p>
+      <section class="game-wrap">
+        <div class="game-stage">
+          <div class="game-brain-backdrop" aria-hidden="true">
+            <div class="brain-lobe brain-lobe-left"></div>
+            <div class="brain-lobe brain-lobe-right"></div>
+            <div class="brain-core"></div>
+            <span class="brain-node node-1"></span>
+            <span class="brain-node node-2"></span>
+            <span class="brain-node node-3"></span>
+            <span class="brain-node node-4"></span>
+            <span class="brain-stream stream-1"></span>
+            <span class="brain-stream stream-2"></span>
+            <span class="brain-stream stream-3"></span>
+          </div>
+
+          <div class="game-topbar">
+            <div class="game-subject-box">
+              <label class="game-label" for="game-subject">과목</label>
+              <select id="game-subject" class="game-select">
+                <option value="재정학">재정학</option>
+                <option value="회계학개론">회계학개론</option>
+                <option value="상법">상법</option>
+                <option value="민법">민법</option>
+                <option value="행정소송법">행정소송법</option>
+                <option value="국세기본법">국세기본법</option>
+                <option value="국세징수법">국세징수법</option>
+                <option value="소득세법">소득세법</option>
+                <option value="법인세법">법인세법</option>
+                <option value="부가가치세법">부가가치세법</option>
+                <option value="조세범처벌법">조세범처벌법</option>
+              </select>
+            </div>
+
+            <div class="game-actions">
+              <button
+                type="button"
+                class="game-control-icon-btn game-toggle-btn"
+                id="game-toggle-btn"
+                aria-label="재생"
+                title="재생"
+              >
+                <svg class="game-icon game-icon-play" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 5.5v13l10-6.5z" />
+                </svg>
+                <svg class="game-icon game-icon-pause" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="game-control-icon-btn game-reset-icon-btn"
+                id="game-reset-btn"
+                aria-label="재시작"
+                title="재시작"
+              >
+                <svg class="game-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18.7 7.3A8 8 0 1 0 20 12h-2.2a5.8 5.8 0 1 1-1.5-3.9L13 11.4h7V4.5z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div id="game-arena" class="game-arena" aria-label="낙하 게임 영역">
+            <div class="game-side-hint game-side-hint-left" aria-hidden="true">O</div>
+            <div class="game-side-hint game-side-hint-right" aria-hidden="true">X</div>
+            <div id="game-flash" class="game-flash" aria-hidden="true"></div>
+            <div id="game-milestone" class="game-milestone" aria-hidden="true"></div>
+            <div id="game-empty" class="game-empty">
+              <div class="game-empty-title">OX 데이터를 불러오면 바로 시작됩니다.</div>
+              <div class="game-empty-text">현재는 2025년 OX 데이터를 사용합니다. 해당 과목 데이터가 없으면 시작되지 않습니다.</div>
+            </div>
+            <div id="game-overlay" class="game-overlay">
+              <div class="game-overlay-card">
+                <div class="game-overlay-eyebrow">세무사 1차 기출</div>
+                <h2 id="game-overlay-title">시작 대기</h2>
+                <p id="game-overlay-text">정답에 맞게 블록을 좌우로 밀어내세요. O는 왼쪽, X는 오른쪽입니다.</p>
+                <div class="game-overlay-actions">
+                  <button type="button" class="game-action-btn" id="game-overlay-btn">게임 시작</button>
+                  <button type="button" class="game-action-btn game-action-btn-secondary is-hidden" id="game-overlay-review-btn">해설보기</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="game-character" class="game-character" aria-hidden="true">
+              <div class="character-glow"></div>
+              <svg class="game-character-figure" viewBox="0 0 120 150" role="img" aria-hidden="true">
+                <defs>
+                  <linearGradient id="hoodieFill" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stop-color="#6d8fb1" />
+                    <stop offset="100%" stop-color="#466887" />
+                  </linearGradient>
+                  <linearGradient id="bookFill" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stop-color="#7d6745" />
+                    <stop offset="100%" stop-color="#5b452f" />
+                  </linearGradient>
+                </defs>
+                <ellipse cx="60" cy="141" rx="30" ry="8" fill="rgba(60,228,255,0.22)" />
+                <path d="M39 22c2-10 12-16 22-16s20 6 22 16l-2 15H41z" fill="#182334" />
+                <rect x="41" y="20" width="38" height="36" rx="16" fill="#efd2be" />
+                <circle cx="54" cy="37" r="2.6" fill="#162233" />
+                <circle cx="66" cy="37" r="2.6" fill="#162233" />
+                <rect x="47" y="31" width="12" height="11" rx="3" fill="none" stroke="#22364c" stroke-width="2" />
+                <rect x="61" y="31" width="12" height="11" rx="3" fill="none" stroke="#22364c" stroke-width="2" />
+                <rect x="59" y="35" width="2" height="2" fill="#22364c" />
+                <path d="M55 47c3 3 7 3 10 0" fill="none" stroke="#855847" stroke-width="2" stroke-linecap="round" />
+                <path class="game-character-sweat" d="M78 27c4 2 4 7 0 10-2-3-3-7 0-10z" fill="#8ff8ff" />
+                <path d="M42 59h36c10 0 18 8 18 18v22H24V77c0-10 8-18 18-18z" fill="url(#hoodieFill)" />
+                <path d="M48 59h24v10c0 4-4 7-12 7s-12-3-12-7z" fill="none" stroke="rgba(236,247,255,0.38)" stroke-width="2" />
+                <path d="M29 76c6 3 10 9 12 18" fill="none" stroke="#587ba0" stroke-width="8" stroke-linecap="round" />
+                <path d="M91 76c-4 4-7 11-8 21" fill="none" stroke="#587ba0" stroke-width="8" stroke-linecap="round" />
+                <path d="M24 88l8-5 4 6-8 5z" fill="#1f2833" />
+                <rect x="78" y="78" width="22" height="34" rx="4" fill="url(#bookFill)" transform="rotate(-8 78 78)" />
+                <path d="M81 82h5M81 87h5M81 92h5" stroke="rgba(250,238,217,0.6)" stroke-width="1.4" />
+                <path d="M50 99v24M70 99v24" stroke="#3f617f" stroke-width="10" stroke-linecap="round" />
+                <path d="M46 125h12M64 125h12" stroke="#f4f8fb" stroke-width="4" stroke-linecap="round" />
+              </svg>
+            </div>
+
+            <div class="game-floor" aria-hidden="true"></div>
+          </div>
+
+          <div class="game-hud">
+            <div class="game-score-panel">SCORE: <span id="game-score">00000</span></div>
+            <div class="game-combo-panel">COMBO <span id="game-combo">0</span></div>
+            <div class="game-lives-panel" aria-label="남은 생명">
+              <span class="game-heart" data-life="1">❤</span>
+              <span class="game-heart" data-life="2">❤</span>
+              <span class="game-heart" data-life="3">❤</span>
+            </div>
+          </div>
+
+          <section id="game-review-panel" class="game-review-panel is-hidden">
+            <div class="game-review-head">
+              <h2>복습 해설</h2>
+              <button type="button" class="game-review-close-btn" id="game-review-close-btn">닫기</button>
+            </div>
+            <p id="game-review-summary" class="game-review-summary"></p>
+            <div id="game-review-list" class="game-review-list"></div>
+          </section>
         </div>
       </section>
-
-      <footer class="phone-footer">
-        <div class="footer-meta">
-          <span>Copyright 도로파파</span>
-          <a href="https://blog.naver.com/rian4u" target="_blank" rel="noopener noreferrer">blog.naver.com/rian4u</a>
-        </div>
-        <div class="footer-controls">
-          <button type="button" class="skin-nav skin-prev" aria-label="이전 스킨">◀</button>
-          <span class="skin-label">스킨 1</span>
-          <button type="button" class="skin-nav skin-next" aria-label="다음 스킨">▶</button>
-        </div>
-      </footer>
     </main>
 
     <script src="./skin.js"></script>
+    <script src="./game.js"></script>
   </body>
 </html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>문의하기 | 세무사 기출 모듈</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=Manrope:wght@500;600;700;800&family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="phone">
+      <header class="phone-header">
+        <button
+          type="button"
+          class="top-back-btn"
+          aria-label="이전"
+          onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href='./index.html'; }"
+        >
+          <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+            <path
+              d="M7.8 7.2V3.8a1 1 0 0 0-1.7-.7L1.8 7.4a1 1 0 0 0 0 1.4l4.3 4.3a1 1 0 0 0 1.7-.7V9.2c5 0 8.9 1.9 11.8 6.5a1 1 0 0 0 1.8-.8C19.4 8.9 14.7 6.8 7.8 7.2z"
+            />
+          </svg>
+        </button>
+        <a class="top-home-btn" href="./index.html" aria-label="홈">
+          <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+            <path
+              d="M12 3.2 3.5 9.8a1 1 0 1 0 1.2 1.6l.8-.6v8.2a1 1 0 0 0 1 1h4.9a1 1 0 0 0 1-1v-4.7h1.2V19a1 1 0 0 0 1 1h4.9a1 1 0 0 0 1-1v-8.2l.8.6a1 1 0 0 0 1.2-1.6L12 3.2z"
+            />
+          </svg>
+        </a>
+        <h1 class="title">세무사 기출 모듈</h1>
+        <p class="title-quote">문의하기</p>
+      </header>
+
+      <section class="sub-page">
+        <div class="setup-card">
+          <h2>오류 제보</h2>
+          <p id="contact-message" class="setup-message">
+            잘못된 문제나 해설, 오탈자, 기능 오류가 있으면 아래 메일로 알려주세요.
+          </p>
+          <a id="contact-email-link" class="contact-email-link" href="mailto:rian4u@naver.com">
+            rian4u@naver.com
+          </a>
+          <p class="contact-note">
+            문제 번호, 과목, 연도, 수정 의견을 함께 보내주시면 반영이 빠릅니다.
+          </p>
+        </div>
+      </section>
+
+      <footer class="phone-footer">
+        <div class="footer-meta">
+          <span>Copyright 도로파파</span>
+          <a href="https://blog.naver.com/rian4u" target="_blank" rel="noopener noreferrer">blog.naver.com/rian4u</a>
+        </div>
+        <div class="footer-controls">
+          <button type="button" class="skin-nav skin-prev" aria-label="이전 스킨">◀</button>
+          <span class="skin-label">스킨 1</span>
+          <button type="button" class="skin-nav skin-next" aria-label="다음 스킨">▶</button>
+        </div>
+      </footer>
+    </main>
+
+    <script src="./skin.js"></script>
+    <script type="module" src="./contact.js"></script>
+  </body>
+</html>

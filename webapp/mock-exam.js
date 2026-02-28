@@ -1,6 +1,6 @@
 ﻿const SUBJECTS = ["재정학", "세법학개론", "회계학개론", "상법", "민법", "행정소송법"];
-const YEARS = [2025, 2024, 2023, 2022, 2021, 2020];
-const OPEN_YEARS = new Set([2025, 2024, 2023]);
+const YEARS = [2025, 2024, 2023, 2022];
+const OPEN_YEARS = new Set([2025, 2024, 2023, 2022]);
 const TAX_EXAM_DATE_2026 = new Date(2026, 3, 25);
 const DEFAULT_IMPORTANCE = "";
 const IMPORTANCE_LEVELS = new Set(["red", "yellow", "green", "gray"]);
@@ -22,7 +22,7 @@ const TEXT = {
     "문제 데이터를 불러오지 못했습니다. webapp/server.py 서버를 확인해 주세요.",
   apiNotReady:
     "DB API에 연결되지 않았습니다. webapp/server.py 서버를 실행한 후 다시 시도해 주세요.",
-  yearLocked: "현재는 2023~2025년만 오픈되어 있습니다.",
+  yearLocked: "현재는 2022~2025년만 오픈되어 있습니다.",
   yearSuffix: "년",
 };
 
@@ -271,6 +271,8 @@ async function loadWrongNotesFromDb() {
     return;
   }
   const query = new URLSearchParams({
+    user_id: state.userId,
+    source: "question",
     year: String(state.selectedYear),
     subject: state.selectedSubject,
   });
@@ -490,6 +492,7 @@ async function persistWrongNote(question, note) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       user_id: state.userId,
+      source: "question",
       year: state.selectedYear,
       subject: state.selectedSubject,
       question_no: question.originalNo,

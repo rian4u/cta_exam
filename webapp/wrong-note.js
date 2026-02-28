@@ -1,4 +1,4 @@
-const SUBJECTS = ["재정학", "세법학개론", "회계학개론", "상법", "민법", "행정소송법"];
+const SUBJECTS = ["재정학", "회계학개론", "상법", "민법", "행정소송법", "국세기본법", "국세징수법", "소득세법", "법인세법", "부가가치세법", "조세범처벌법"];
 const USER_STORAGE_KEY = "taxexam:device-id";
 const LEGACY_USER_STORAGE_KEY = "taxexam:user-id";
 const DEFAULT_USER_ID = "";
@@ -134,7 +134,7 @@ function renderResults(items) {
   if (!items.length) {
     const empty = document.createElement("li");
     empty.className = "wrong-result-empty";
-    empty.textContent = "검색 결과가 없습니다.";
+    empty.textContent = "?? ??? ????.";
     resultList.appendChild(empty);
     return;
   }
@@ -148,23 +148,58 @@ function renderResults(items) {
       questionNo: String(item.question_no),
       userId: state.userId,
     });
+    const source = String(item.source || "question").trim().toLowerCase();
+    if (source === "ox") {
+      query.set("source", "ox");
+    }
 
     const titleRow = document.createElement("div");
     titleRow.className = "wrong-result-title-row";
 
-    const link = document.createElement("a");
-    link.className = "wrong-result-link";
-    link.href = `./mock-exam.html?${query.toString()}`;
-    link.textContent = `${item.subject} | ${item.year}년 | ${item.question_no}번`;
+    let trigger = null;
+    if (source === "ox") {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "wrong-result-trigger";
+      button.textContent = `${item.subject} OX | ${item.question_no}?`;
+      trigger = button;
+    } else {
+      const link = document.createElement("a");
+      link.className = "wrong-result-link";
+      link.href = `./mock-exam.html?${query.toString()}`;
+      link.textContent = `${item.subject} | ${item.year}? | ${item.question_no}?`;
+      trigger = link;
+    }
 
-    titleRow.append(link, buildLight(item.importance || ""));
+    titleRow.append(trigger, buildLight(item.importance || ""));
+
+    if (source === "ox") {
+      const explainBox = document.createElement("div");
+      explainBox.className = "wrong-result-inline-explain hidden";
+
+      const answer = document.createElement("div");
+      answer.className = "wrong-result-inline-answer";
+      answer.textContent = `?? ${item.answer || "-"}`;
+
+      const explanation = document.createElement("div");
+      explanation.className = "wrong-result-inline-body";
+      explanation.textContent = item.explanation || "?? ??? ????.";
+
+      explainBox.append(answer, explanation);
+      row.append(titleRow, explainBox);
+      trigger.addEventListener("click", () => {
+        explainBox.classList.toggle("hidden");
+      });
+    } else {
+      row.append(titleRow);
+    }
 
     const commentRow = document.createElement("div");
     commentRow.className = "wrong-result-comment-row";
 
     const comment = document.createElement("div");
     comment.className = "wrong-result-comment";
-    comment.textContent = item.comment || "(코멘트 없음)";
+    comment.textContent = item.comment || "(??? ??)";
 
     const updated = document.createElement("span");
     updated.className = "wrong-result-updated";
@@ -176,7 +211,7 @@ function renderResults(items) {
     preview.className = "wrong-result-preview";
     preview.textContent = item.question_preview || "";
 
-    row.append(titleRow, commentRow, preview);
+    row.append(commentRow, preview);
     resultList.appendChild(row);
   });
 }
@@ -207,12 +242,16 @@ async function searchWrongNotes() {
 
   const payload = await response.json();
   const rawItems = Array.isArray(payload.items) ? payload.items : [];
+  const allColorsSelected = state.selectedImportances.size === IMPORTANCE_LEVELS.size;
   const items =
     state.selectedImportances.size === 0
       ? []
       : rawItems.filter((item) => {
           const importance = normalizeImportance(item.importance);
-          return !importance || state.selectedImportances.has(importance);
+          if (!importance) {
+            return allColorsSelected;
+          }
+          return state.selectedImportances.has(importance);
         });
   renderResults(items);
   message.textContent = `검색 결과 ${items.length}건`;

@@ -12,6 +12,8 @@ from typing import Dict, Iterable, List, Tuple
 
 import pdfplumber
 
+from data_paths import find_year_file, list_year_pdfs
+
 
 QUESTION_START_RE = re.compile(r"^(\d{1,2})\.(?:\s|$)")
 FOOTER_RE = re.compile(
@@ -900,7 +902,7 @@ def parse_published_answers(path: Path) -> Dict[Tuple[str, int], str]:
 
 
 def find_single_pdf(base_dir: Path, token: str) -> Path:
-    files = [path for path in base_dir.glob("*.pdf") if token in path.name and "시험지 원본" in path.name]
+    files = [path for path in list_year_pdfs(base_dir) if token in path.name and "시험지 원본" in path.name]
     if len(files) != 1:
         names = [path.name for path in files]
         raise FileNotFoundError(f"'{token}' PDF를 단일하게 찾지 못했습니다: {names}")
@@ -908,7 +910,7 @@ def find_single_pdf(base_dir: Path, token: str) -> Path:
 
 
 def find_second_session_pdfs(base_dir: Path) -> List[Path]:
-    files = [path for path in base_dir.glob("*.pdf") if "2교시" in path.name and "시험지 원본" in path.name]
+    files = [path for path in list_year_pdfs(base_dir) if "2교시" in path.name and "시험지 원본" in path.name]
     if len(files) < 1:
         raise FileNotFoundError("2교시 시험지 원본 PDF를 찾지 못했습니다.")
     return sorted(files)
@@ -1004,18 +1006,18 @@ def build_question_rows(data_dir: Path, year: int) -> List[QuestionRow]:
             )
 
     solution_files = {
-        "재정학": data_dir / "재정학풀이.txt",
-        "세법학개론": data_dir / "세법학개론풀이.txt",
-        "회계학개론": data_dir / "회계학개론풀이.txt",
-        "상법": data_dir / "상법풀이.txt",
-        "민법": data_dir / "민법풀이.txt",
-        "행정소송법": data_dir / "행정소송법풀이.txt",
+        "재정학": find_year_file(data_dir, "재정학풀이.txt", kind="solution"),
+        "세법학개론": find_year_file(data_dir, "세법학개론풀이.txt", kind="solution"),
+        "회계학개론": find_year_file(data_dir, "회계학개론풀이.txt", kind="solution"),
+        "상법": find_year_file(data_dir, "상법풀이.txt", kind="solution"),
+        "민법": find_year_file(data_dir, "민법풀이.txt", kind="solution"),
+        "행정소송법": find_year_file(data_dir, "행정소송법풀이.txt", kind="solution"),
     }
     solution_map: Dict[str, Dict[int, Tuple[str, str]]] = {
         subject: parse_solution_file(path) for subject, path in solution_files.items()
     }
 
-    published_map = parse_published_answers(data_dir / "실제정답.txt")
+    published_map = parse_published_answers(find_year_file(data_dir, "실제정답.txt", kind="problem"))
 
     for key, row in records.items():
         _, subject, number = key

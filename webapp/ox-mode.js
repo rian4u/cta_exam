@@ -1,8 +1,10 @@
-﻿const SUBJECTS = ["재정학", "세법학개론", "회계학개론", "상법", "민법", "행정소송법"];
+const SUBJECTS = ["재정학", "회계학개론", "상법", "민법", "행정소송법", "국세기본법", "국세징수법", "소득세법", "법인세법", "부가가치세법", "조세범처벌법"];
 const OX_YEAR = 2025;
 const TAX_EXAM_DATE_2026 = new Date(2026, 3, 25);
 const ALL_FILTER_COLORS = ["red", "yellow", "green", "gray"];
-const DEFAULT_IMPORTANCE = "green";
+const DEFAULT_IMPORTANCE = "";
+const USER_STORAGE_KEY = "taxexam:device-id";
+const LEGACY_USER_STORAGE_KEY = "taxexam:user-id";
 
 const TEXT = {
   noData: "선택한 과목 OX 데이터가 없습니다.",
@@ -15,15 +17,17 @@ const TEXT = {
 
 const state = {
   selectedSubject: "",
-  enabledFilters: new Set(ALL_FILTER_COLORS),
+  enabledFilters: new Set(),
   apiReady: false,
   apiBase: "",
+  userId: "",
   allQuestions: [],
   questions: [],
   currentIndex: 0,
   answers: {},
   explanationOpen: false,
   trafficMap: {},
+  reviewOpen: false,
 };
 
 const setupPanel = document.getElementById("ox-setup-panel");
@@ -41,19 +45,65 @@ const explainPopup = document.getElementById("ox-explain-popup");
 const explainPopupBody = document.getElementById("ox-explain-popup-body");
 const explainClose = document.getElementById("ox-explain-close");
 const explainCloseTop = document.getElementById("ox-explain-close-top");
-const topFilterButtons = [...document.querySelectorAll("#ox-filter-traffic-group .traffic-btn")];
-const filterButtons = [...topFilterButtons];
+const reviewPanel = document.getElementById("ox-review-panel");
+const reviewSummary = document.getElementById("ox-review-summary");
+const reviewList = document.getElementById("ox-review-list");
+const reviewRestart = document.getElementById("ox-review-restart");
+const filterButtons = [...document.querySelectorAll("#ox-filter-traffic-group .traffic-btn")];
 const trafficButtons = [...document.querySelectorAll("#ox-traffic-group .traffic-btn")];
 
 function stripLeadingQuestionNo(text) {
-  return String(text || "").replace(/^\s*(?:문제\s*)?(?:\d+|[①-⑳]|[OX])\s*[\.\)\]:：\-]\s*/u, "").trimStart();
+  return String(text || "")
+    .replace(/^\s*(?:문제\s*)?(?:\d+|[①-⑳]|[OX])\s*[\.\)\]:：\-]\s*/u, "")
+    .trimStart();
 }
+
 function normalizeImportanceColor(color) {
-  const normalized = String(color || "")
-    .trim()
-    .toLowerCase();
+  const normalized = String(color || "").trim().toLowerCase();
   return ALL_FILTER_COLORS.includes(normalized) ? normalized : DEFAULT_IMPORTANCE;
 }
+
+function normalizeUserId(value) {
+  const normalized = String(value || "").trim();
+  return normalized ? normalized.slice(0, 64) : "";
+}
+
+function generateDeviceId() {
+  try {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return `device-${window.crypto.randomUUID()}`;
+    }
+  } catch (_) {}
+  return `device-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function applyUserId(value, { persist = true } = {}) {
+  const userId = normalizeUserId(value);
+  state.userId = userId;
+  if (!persist) {
+    return;
+  }
+  try {
+    localStorage.setItem(USER_STORAGE_KEY, userId);
+  } catch (_) {}
+}
+
+function initUserId() {
+  const storedUserId = (() => {
+    try {
+      return (
+        localStorage.getItem(USER_STORAGE_KEY) ||
+        localStorage.getItem(LEGACY_USER_STORAGE_KEY) ||
+        ""
+      );
+    } catch (_) {
+      return "";
+    }
+  })();
+  const nextUserId = normalizeUserId(storedUserId) || generateDeviceId();
+  applyUserId(nextUserId);
+}
+
 function getDdayLabel(targetDate) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -64,10 +114,9 @@ function getDdayLabel(targetDate) {
 }
 
 function renderExamDday() {
-  if (!examDday) {
-    return;
+  if (examDday) {
+    examDday.textContent = getDdayLabel(TAX_EXAM_DATE_2026);
   }
-  examDday.textContent = getDdayLabel(TAX_EXAM_DATE_2026);
 }
 
 function createChoiceButtons(values, container, onClick) {
@@ -83,10 +132,18 @@ function createChoiceButtons(values, container, onClick) {
 }
 
 function setActiveButton(container, matcher) {
-  const buttons = [...container.querySelectorAll(".choice-button")];
-  buttons.forEach((button) => {
+  [...container.querySelectorAll(".choice-button")].forEach((button) => {
     button.classList.toggle("active", matcher(button.textContent));
   });
+}
+
+function shuffle(items) {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+  }
+  return copy;
 }
 
 function renderFilterLights() {
@@ -102,19 +159,21 @@ function refreshStartButton() {
 
 function selectSubject(subject) {
   state.selectedSubject = subject;
+  state.enabledFilters.clear();
+  renderFilterLights();
   setActiveButton(subjectGrid, (label) => label === subject);
   setupMessage.textContent = "";
   refreshStartButton();
 }
 
 function normalizeQuestions(rows) {
-  const sorted = [...rows].sort((a, b) => a.original_no - b.original_no);
-  return sorted.map((row) => ({
-    originalNo: row.original_no,
+  const normalized = rows.map((row) => ({
+    originalNo: Number(row.original_no),
     stem: stripLeadingQuestionNo(row.question || ""),
     answer: String(row.answer || "").toUpperCase(),
-    explanation: row.explanation || "",
+    explanation: String(row.explanation || ""),
   }));
+  return shuffle(normalized);
 }
 
 function typesetMath(targetNodes = []) {
@@ -122,7 +181,7 @@ function typesetMath(targetNodes = []) {
     return;
   }
   const elements = targetNodes.filter(Boolean);
-  if (elements.length === 0) {
+  if (!elements.length) {
     return;
   }
   window.MathJax.typesetPromise(elements).catch(() => {});
@@ -143,8 +202,7 @@ function getApiBaseCandidates() {
 }
 
 async function verifyApiReady() {
-  const candidates = getApiBaseCandidates();
-  for (const base of candidates) {
+  for (const base of getApiBaseCandidates()) {
     try {
       const response = await fetch(`${base}/api/health`, { mode: "cors" });
       if (!response.ok) {
@@ -179,62 +237,111 @@ async function loadQuestionsFromDb() {
   return normalizeQuestions(payload.questions ?? []);
 }
 
-function getTrafficStorageKey() {
-  return `ox-traffic:${OX_YEAR}:${state.selectedSubject}`;
-}
-
-function loadTrafficMap() {
-  try {
-    const raw = localStorage.getItem(getTrafficStorageKey());
-    const parsed = raw ? JSON.parse(raw) : {};
-    const nextMap = {};
-    if (parsed && typeof parsed === "object") {
-      Object.entries(parsed).forEach(([key, value]) => {
-        const normalized = normalizeImportanceColor(value);
-        if (normalized !== DEFAULT_IMPORTANCE) {
-          nextMap[String(key)] = normalized;
-        }
-      });
-    }
-    state.trafficMap = nextMap;
-    saveTrafficMap();
-  } catch (_) {
+async function loadTrafficMap() {
+  if (!state.apiReady || !state.apiBase) {
     state.trafficMap = {};
+    return;
   }
-}
-
-function saveTrafficMap() {
-  try {
-    localStorage.setItem(getTrafficStorageKey(), JSON.stringify(state.trafficMap));
-  } catch (_) {}
+  const query = new URLSearchParams({
+    user_id: state.userId,
+    source: "ox",
+    year: String(OX_YEAR),
+    subject: state.selectedSubject,
+  });
+  const response = await fetch(`${state.apiBase}/api/wrong-notes/map?${query.toString()}`);
+  if (!response.ok) {
+    throw new Error(`wrong note map api failed: ${response.status}`);
+  }
+  const payload = await response.json();
+  const items = payload && typeof payload.items === "object" ? payload.items : {};
+  const nextMap = {};
+  Object.entries(items).forEach(([key, value]) => {
+    if (!value || typeof value !== "object") {
+      return;
+    }
+    const importance = normalizeImportanceColor(value.importance);
+    const comment = String(value.comment || "");
+    if (!importance && !comment) {
+      return;
+    }
+    nextMap[String(key)] = {
+      importance,
+      comment,
+      updatedAt: String(value.updated_at || ""),
+    };
+  });
+  state.trafficMap = nextMap;
 }
 
 function getQuestionKey(question) {
   return String(question.originalNo);
 }
 
-function getQuestionTraffic(question) {
-  return normalizeImportanceColor(state.trafficMap[getQuestionKey(question)]);
+function getQuestionNote(question) {
+  const note = state.trafficMap[getQuestionKey(question)];
+  if (!note || typeof note !== "object") {
+    return { importance: DEFAULT_IMPORTANCE, comment: "", updatedAt: "" };
+  }
+  return {
+    importance: normalizeImportanceColor(note.importance),
+    comment: String(note.comment || ""),
+    updatedAt: String(note.updatedAt || note.updated_at || ""),
+  };
 }
-function setQuestionTraffic(question, color) {
+
+function getQuestionTraffic(question) {
+  return getQuestionNote(question).importance;
+}
+
+async function setQuestionTraffic(question, color) {
   const key = getQuestionKey(question);
-  const normalizedColor = normalizeImportanceColor(color);
-  if (normalizedColor === DEFAULT_IMPORTANCE) {
+  const currentNote = getQuestionNote(question);
+  const nextImportance = normalizeImportanceColor(color);
+  const nextNote = {
+    importance: nextImportance,
+    comment: currentNote.comment,
+    updatedAt: currentNote.updatedAt,
+  };
+
+  if (!nextNote.importance && !nextNote.comment) {
     delete state.trafficMap[key];
   } else {
-    state.trafficMap[key] = normalizedColor;
+    state.trafficMap[key] = nextNote;
   }
-  saveTrafficMap();
+
+  if (!state.apiReady || !state.apiBase) {
+    return;
+  }
+
+  const response = await fetch(`${state.apiBase}/api/wrong-notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: state.userId,
+      source: "ox",
+      year: OX_YEAR,
+      subject: state.selectedSubject,
+      question_no: question.originalNo,
+      importance: nextNote.importance,
+      comment: nextNote.comment,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`wrong note upsert failed: ${response.status}`);
+  }
 }
 
 function applyQuestionFilter() {
-  const showAll = state.enabledFilters.size === ALL_FILTER_COLORS.length;
-  state.questions = state.allQuestions.filter((question) => {
+  const activeFilters = [...state.enabledFilters].filter((color) => ALL_FILTER_COLORS.includes(color));
+  const showAll = activeFilters.length === 0;
+  const filtered = state.allQuestions.filter((question) => {
     if (showAll) {
       return true;
     }
-    return state.enabledFilters.has(getQuestionTraffic(question));
+    const traffic = getQuestionTraffic(question);
+    return activeFilters.includes(traffic);
   });
+  state.questions = shuffle(filtered);
 }
 
 function reflowAfterFilterChange() {
@@ -285,6 +392,94 @@ function renderTrafficButtons(question) {
   });
 }
 
+function createInlineTrafficGroup(question) {
+  const wrap = document.createElement("div");
+  wrap.className = "traffic-group ox-review-traffic";
+  ALL_FILTER_COLORS.forEach((color) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `traffic-btn traffic-${color}`;
+    button.dataset.traffic = color;
+    button.setAttribute("aria-label", color);
+    button.classList.toggle("active", getQuestionTraffic(question) === color);
+    button.addEventListener("click", async () => {
+      const current = getQuestionTraffic(question);
+      try {
+        await setQuestionTraffic(question, current === color ? "" : color);
+      } catch (_) {}
+      renderTrafficButtons(question);
+      renderReviewList();
+    });
+    wrap.appendChild(button);
+  });
+  return wrap;
+}
+
+function getAnsweredQuestionsForReview() {
+  return state.questions.filter((question) => !!getSelectedChoice(question));
+}
+
+function hideReviewPanel() {
+  state.reviewOpen = false;
+  reviewPanel?.classList.add("hidden");
+  questionPanel?.classList.remove("hidden");
+  optionPanel?.classList.remove("hidden");
+}
+
+function renderReviewList() {
+  if (!reviewList || !reviewSummary) {
+    return;
+  }
+  const solved = getAnsweredQuestionsForReview();
+  const wrongCount = solved.filter((question) => getSelectedChoice(question) !== question.answer).length;
+  reviewSummary.textContent = `? ${solved.length}?? ?? | ?? ${wrongCount}??`;
+  reviewList.innerHTML = "";
+  if (!solved.length) {
+    const empty = document.createElement("div");
+    empty.className = "qa-empty";
+    empty.textContent = "??? ??? ????.";
+    reviewList.appendChild(empty);
+    return;
+  }
+  solved.forEach((question) => {
+    const item = document.createElement("article");
+    item.className = "ox-review-item";
+
+    const head = document.createElement("div");
+    head.className = "ox-review-item-head";
+
+    const title = document.createElement("div");
+    title.className = "ox-review-title";
+    title.textContent = question.stem || "";
+
+    const myAnswer = getSelectedChoice(question) || "-";
+    const meta = document.createElement("div");
+    meta.className = "ox-review-meta";
+    meta.textContent = `? ? ${myAnswer} | ?? ${question.answer || "-"}`;
+    if (myAnswer && question.answer && myAnswer !== question.answer) {
+      meta.classList.add("is-wrong");
+    }
+
+    const body = document.createElement("div");
+    body.className = "ox-review-body";
+    body.textContent = question.explanation || "?? ??? ????.";
+
+    head.append(title, createInlineTrafficGroup(question));
+    item.append(head, meta, body);
+    reviewList.appendChild(item);
+  });
+  typesetMath([reviewList]);
+}
+
+function showReviewPanel() {
+  state.reviewOpen = true;
+  closeExplanationPopup();
+  questionPanel?.classList.add("hidden");
+  optionPanel?.classList.add("hidden");
+  reviewPanel?.classList.remove("hidden");
+  renderReviewList();
+}
+
 function syncExplanationPopupBounds() {
   if (!questionPanel || !optionPanel) {
     return;
@@ -329,6 +524,11 @@ function renderExplanationPopup(question) {
 }
 
 function renderExam() {
+  if (state.reviewOpen) {
+    examLabel.textContent = `${state.selectedSubject} OX ??`;
+    renderReviewList();
+    return;
+  }
   const totalFiltered = state.questions.length;
   const question = getCurrentQuestion();
   examLabel.textContent = `${state.selectedSubject} OX (총 ${totalFiltered} 문제)`;
@@ -366,8 +566,7 @@ function moveToNextQuestion() {
     renderExam();
     return;
   }
-  closeExplanationPopup();
-  renderExam();
+  showReviewPanel();
 }
 
 function toggleFilterColor(color) {
@@ -381,7 +580,11 @@ function toggleFilterColor(color) {
   }
   renderFilterLights();
   if (state.allQuestions.length > 0) {
-    reflowAfterFilterChange();
+    if (state.reviewOpen) {
+      renderReviewList();
+    } else {
+      reflowAfterFilterChange();
+    }
   }
 }
 
@@ -391,6 +594,8 @@ function showExamPanel() {
 }
 
 function showSetupPanel() {
+  state.enabledFilters.clear();
+  renderFilterLights();
   setupPanel.classList.remove("hidden");
   examPanel.classList.add("hidden");
   closeExplanationPopup();
@@ -414,12 +619,15 @@ async function startExam() {
       setupMessage.textContent = TEXT.noData;
       return;
     }
+    state.enabledFilters.clear();
+    renderFilterLights();
     state.allQuestions = rows;
-    loadTrafficMap();
+    await loadTrafficMap();
     applyQuestionFilter();
     state.currentIndex = 0;
     state.answers = {};
     state.explanationOpen = false;
+    hideReviewPanel();
     showExamPanel();
     renderExam();
   } catch (_) {
@@ -436,21 +644,21 @@ function initEvents() {
   });
   explainClose.addEventListener("click", moveToNextQuestion);
   if (explainCloseTop) {
-    explainCloseTop.addEventListener("click", () => {
-      closeExplanationPopup();
-    });
+    explainCloseTop.addEventListener("click", closeExplanationPopup);
   }
   trafficButtons.forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const question = getCurrentQuestion();
       if (!question) {
         return;
       }
       const value = button.dataset.traffic || "";
       const current = getQuestionTraffic(question);
-      setQuestionTraffic(question, current === value ? "" : value);
+      try {
+        await setQuestionTraffic(question, current === value ? "" : value);
+      } catch (_) {}
       renderTrafficButtons(question);
-      if (state.enabledFilters.size !== ALL_FILTER_COLORS.length) {
+      if (state.enabledFilters.size > 0) {
         reflowAfterFilterChange();
       }
     });
@@ -460,11 +668,16 @@ function initEvents() {
       syncExplanationPopupBounds();
     }
   });
+  reviewRestart?.addEventListener("click", () => {
+    startExam();
+  });
 }
 
 async function init() {
+  initUserId();
   createChoiceButtons(SUBJECTS, subjectGrid, selectSubject);
   await verifyApiReady();
+  state.enabledFilters.clear();
   renderFilterLights();
   renderExamDday();
   initEvents();
@@ -473,5 +686,3 @@ async function init() {
 }
 
 init();
-
-

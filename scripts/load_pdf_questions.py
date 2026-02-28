@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+from data_paths import list_year_pdfs
 from fill_missing_answers_gemini import ensure_answered_column, enrich_missing_answers, load_api_key
 
 
@@ -29,7 +30,7 @@ def load_base_parser_module() -> ModuleType:
 
 
 def find_single_session_pdf(year_dir: Path, token: str) -> Path:
-    files = [path for path in year_dir.glob("*.pdf") if token in path.name]
+    files = [path for path in list_year_pdfs(year_dir) if token in path.name]
     if len(files) != 1:
         names = [path.name for path in files]
         raise FileNotFoundError(f"[{year_dir.name}] '{token}' PDF expected 1, found {len(files)}: {names}")
@@ -37,7 +38,7 @@ def find_single_session_pdf(year_dir: Path, token: str) -> Path:
 
 
 def find_second_session_pdfs(year_dir: Path) -> list[Path]:
-    files = sorted(path for path in year_dir.glob("*.pdf") if "2\uad50\uc2dc" in path.name)
+    files = sorted(path for path in list_year_pdfs(year_dir) if "2\uad50\uc2dc" in path.name)
     if not files:
         raise FileNotFoundError(f"[{year_dir.name}] no 2교시 PDFs found")
     return files

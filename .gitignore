@@ -14,3 +14,8 @@ data/2024/
 data/2025/
 data/review/
 !data/questions.db
+
+# Local runtime artifacts
+.logs/
+.tmp_*.cmd
+.tmp_*.ps1

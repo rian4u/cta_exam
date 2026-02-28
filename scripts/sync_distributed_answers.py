@@ -5,6 +5,8 @@ import re
 import sqlite3
 from pathlib import Path
 
+from data_paths import find_year_file
+
 
 TABLE_QUESTIONS = "문제"
 COL_YEAR = "출제연도"
@@ -125,12 +127,12 @@ def main() -> None:
     conn = sqlite3.connect(db_path)
     try:
         for year in args.years:
-            txt_path = data_root / str(year) / "실제정답.txt"
-            if txt_path.exists():
+            try:
+                txt_path = find_year_file(data_root / str(year), "실제정답.txt", kind="problem")
                 mapping = parse_published_answers(txt_path)
                 updated = update_from_mapping(conn, year=year, mapping=mapping)
                 source = str(txt_path)
-            else:
+            except FileNotFoundError:
                 updated = fallback_copy_from_answer(conn, year=year)
                 source = "fallback: 문제.답"
 

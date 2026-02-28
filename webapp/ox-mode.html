@@ -64,10 +64,10 @@
           <div class="exam-top">
             <span id="ox-exam-label" class="exam-label"></span>
             <div id="ox-filter-traffic-group" class="traffic-group ox-filter-traffic">
-              <button type="button" class="traffic-btn traffic-red active" data-filter="red" aria-label="빨강"></button>
-              <button type="button" class="traffic-btn traffic-yellow active" data-filter="yellow" aria-label="노랑"></button>
-              <button type="button" class="traffic-btn traffic-green active" data-filter="green" aria-label="초록"></button>
-              <button type="button" class="traffic-btn traffic-gray active" data-filter="gray" aria-label="회색"></button>
+              <button type="button" class="traffic-btn traffic-red" data-filter="red" aria-label="빨강"></button>
+              <button type="button" class="traffic-btn traffic-yellow" data-filter="yellow" aria-label="노랑"></button>
+              <button type="button" class="traffic-btn traffic-green" data-filter="green" aria-label="초록"></button>
+              <button type="button" class="traffic-btn traffic-gray" data-filter="gray" aria-label="회색"></button>
             </div>
             <span id="ox-exam-dday" class="exam-dday"></span>
           </div>
@@ -79,6 +79,15 @@
           <article id="ox-option-panel" class="option-panel ox-option-panel">
             <div id="ox-option-list" class="ox-option-list"></div>
           </article>
+
+          <section id="ox-review-panel" class="setup-card ox-review-panel hidden">
+            <div class="ox-review-head">
+              <h2>복습 목록</h2>
+              <button id="ox-review-restart" type="button" class="exam-back">다시 시작</button>
+            </div>
+            <p id="ox-review-summary" class="setup-message"></p>
+            <div id="ox-review-list" class="ox-review-list"></div>
+          </section>
 
           <article id="ox-explain-popup" class="explain-popup hidden" aria-live="polite">
             <div class="explain-popup-head">
