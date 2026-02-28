@@ -333,11 +333,11 @@ async function setQuestionTraffic(question, color) {
 
 function applyQuestionFilter() {
   const activeFilters = [...state.enabledFilters].filter((color) => ALL_FILTER_COLORS.includes(color));
-  const showAll = activeFilters.length === 0;
+  if (activeFilters.length === 0) {
+    state.questions = shuffle(state.allQuestions);
+    return;
+  }
   const filtered = state.allQuestions.filter((question) => {
-    if (showAll) {
-      return true;
-    }
     const traffic = getQuestionTraffic(question);
     return activeFilters.includes(traffic);
   });
@@ -533,6 +533,12 @@ function renderExam() {
   const question = getCurrentQuestion();
   examLabel.textContent = `${state.selectedSubject} OX (총 ${totalFiltered} 문제)`;
   if (!question) {
+    if (state.enabledFilters.size === 0 && state.allQuestions.length > 0) {
+      state.questions = shuffle(state.allQuestions);
+      state.currentIndex = 0;
+      renderExam();
+      return;
+    }
     statusQuestion.textContent = TEXT.noFilteredData;
     optionList.innerHTML = "";
     closeExplanationPopup();

@@ -2845,8 +2845,20 @@ body.skin-3 .qa-answer-item {
   color: var(--text-soft);
 }
 
+.game-review-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .game-review-meta.is-wrong {
   color: #ffb7c7;
+}
+
+.game-review-traffic {
+  flex-shrink: 0;
+  gap: 8px;
 }
 
 .game-review-body {

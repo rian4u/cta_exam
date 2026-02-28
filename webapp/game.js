@@ -1,5 +1,9 @@
 const YEAR = 2025;
 const SUBJECTS = ["재정학", "회계학개론", "상법", "민법", "행정소송법", "국세기본법", "국세징수법", "소득세법", "법인세법", "부가가치세법", "조세범처벌법"];
+const ALL_FILTER_COLORS = ["red", "yellow", "green", "gray"];
+const DEFAULT_IMPORTANCE = "";
+const USER_STORAGE_KEY = "taxexam:device-id";
+const LEGACY_USER_STORAGE_KEY = "taxexam:user-id";
 const MAX_LIVES = 3;
 const SWIPE_THRESHOLD = 56;
 const MILESTONES = [
@@ -33,6 +37,7 @@ const hearts = Array.from(document.querySelectorAll(".game-heart"));
 const state = {
   apiBase: "",
   apiReady: false,
+  userId: "",
   subject: subjectSelect?.value || SUBJECTS[0],
   pool: [],
   xPool: [],
@@ -54,6 +59,7 @@ const state = {
   audioCtx: null,
   nextSpawnTimer: 0,
   reviewHistory: [],
+  trafficMap: {},
 };
 
 function getApiBaseCandidates() {
@@ -91,6 +97,52 @@ function setStatus(text) {
   if (statusNode) {
     statusNode.textContent = text || "";
   }
+}
+
+function normalizeImportanceColor(color) {
+  const normalized = String(color || "").trim().toLowerCase();
+  return ALL_FILTER_COLORS.includes(normalized) ? normalized : DEFAULT_IMPORTANCE;
+}
+
+function normalizeUserId(value) {
+  const normalized = String(value || "").trim();
+  return normalized ? normalized.slice(0, 64) : "";
+}
+
+function generateDeviceId() {
+  try {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return `device-${window.crypto.randomUUID()}`;
+    }
+  } catch (_) {}
+  return `device-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function applyUserId(value, { persist = true } = {}) {
+  const userId = normalizeUserId(value);
+  state.userId = userId;
+  if (!persist) {
+    return;
+  }
+  try {
+    localStorage.setItem(USER_STORAGE_KEY, userId);
+  } catch (_) {}
+}
+
+function initUserId() {
+  const storedUserId = (() => {
+    try {
+      return (
+        localStorage.getItem(USER_STORAGE_KEY) ||
+        localStorage.getItem(LEGACY_USER_STORAGE_KEY) ||
+        ""
+      );
+    } catch (_) {
+      return "";
+    }
+  })();
+  const nextUserId = normalizeUserId(storedUserId) || generateDeviceId();
+  applyUserId(nextUserId);
 }
 
 function formatScore(value) {
@@ -172,8 +224,101 @@ function showReviewPanel() {
   }
 }
 
+async function loadTrafficMap() {
+  if (!state.apiReady || !state.apiBase || !state.subject) {
+    state.trafficMap = {};
+    return;
+  }
+  const query = new URLSearchParams({
+    user_id: state.userId,
+    source: "ox",
+    year: String(YEAR),
+    subject: state.subject,
+  });
+  const response = await fetch(`${state.apiBase}/api/wrong-notes/map?${query.toString()}`);
+  if (!response.ok) {
+    throw new Error(`wrong note map api failed: ${response.status}`);
+  }
+  const payload = await response.json();
+  const items = payload && typeof payload.items === "object" ? payload.items : {};
+  const nextMap = {};
+  Object.entries(items).forEach(([key, value]) => {
+    if (!value || typeof value !== "object") {
+      return;
+    }
+    const importance = normalizeImportanceColor(value.importance);
+    if (!importance) {
+      return;
+    }
+    nextMap[String(key)] = { importance };
+  });
+  state.trafficMap = nextMap;
+}
+
+function getTrafficByOriginalNo(originalNo) {
+  const item = state.trafficMap[String(originalNo)];
+  if (!item || typeof item !== "object") {
+    return DEFAULT_IMPORTANCE;
+  }
+  return normalizeImportanceColor(item.importance);
+}
+
+async function setTrafficForOriginalNo(originalNo, color) {
+  const key = String(originalNo);
+  const nextImportance = normalizeImportanceColor(color);
+  if (!nextImportance) {
+    delete state.trafficMap[key];
+  } else {
+    state.trafficMap[key] = { importance: nextImportance };
+  }
+
+  if (!state.apiReady || !state.apiBase) {
+    return;
+  }
+
+  const response = await fetch(`${state.apiBase}/api/wrong-notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: state.userId,
+      source: "ox",
+      year: YEAR,
+      subject: state.subject,
+      question_no: Number(originalNo),
+      importance: nextImportance,
+      comment: "",
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`wrong note upsert failed: ${response.status}`);
+  }
+}
+
+function createReviewTrafficGroup(item) {
+  const wrap = document.createElement("div");
+  wrap.className = "traffic-group game-review-traffic";
+  ALL_FILTER_COLORS.forEach((color) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `traffic-btn traffic-${color}`;
+    button.dataset.traffic = color;
+    button.setAttribute("aria-label", color);
+    button.classList.toggle("active", getTrafficByOriginalNo(item.originalNo) === color);
+    button.addEventListener("click", async () => {
+      const current = getTrafficByOriginalNo(item.originalNo);
+      try {
+        await setTrafficForOriginalNo(item.originalNo, current === color ? "" : color);
+      } catch (_) {}
+      renderReviewPanel();
+    });
+    wrap.appendChild(button);
+  });
+  return wrap;
+}
+
 function recordReview(block, outcome) {
   state.reviewHistory.push({
+    originalNo: Number(block?.originalNo || 0),
     question: String(block?.question || "").trim(),
     answer: String(block?.answer || "").trim().toUpperCase(),
     explanation: String(block?.explanation || "").trim(),
@@ -219,8 +364,12 @@ function renderReviewPanel() {
     body.className = "game-review-body";
     body.textContent = item.explanation || "해설 정보가 없습니다.";
 
+    const metaRow = document.createElement("div");
+    metaRow.className = "game-review-meta-row";
+    metaRow.append(meta, createReviewTrafficGroup(item));
+
     head.append(title);
-    card.append(head, meta, body);
+    card.append(head, metaRow, body);
     reviewList.appendChild(card);
   });
 }
@@ -521,6 +670,7 @@ function createBlock(item) {
   const speed = travelDistance / 10;
   const block = {
     id: state.nextBlockId += 1,
+    originalNo: Number(item.originalNo || 0),
     answer: String(item.answer || "").toUpperCase(),
     question: item.question || "",
     explanation: item.explanation || "",
@@ -711,15 +861,17 @@ async function fetchOxQuestions(subject) {
   const questions = Array.isArray(payload.questions) ? payload.questions : [];
   return questions
     .map((item) => ({
+      originalNo: Number(item.original_no || 0),
       question: String(item.question || "").trim(),
       answer: String(item.answer || "").trim().toUpperCase(),
       explanation: String(item.explanation || "").trim(),
     }))
-    .filter((item) => item.question && (item.answer === "O" || item.answer === "X"));
+    .filter((item) => item.originalNo > 0 && item.question && (item.answer === "O" || item.answer === "X"));
 }
 
 async function loadSubject(subject) {
   state.subject = subject;
+  state.trafficMap = {};
   setStatus(`${subject} OX 데이터를 불러오는 중입니다.`);
   resetStateForRun();
   setOverlay("로딩 중", `${subject} OX 데이터를 불러오는 중입니다.`, "대기", true);
@@ -728,6 +880,7 @@ async function loadSubject(subject) {
   }
   try {
     const questions = await fetchOxQuestions(subject);
+    await loadTrafficMap();
     state.pool = shuffle(questions);
     state.xPool = questions.filter((item) => item.answer === "X");
     state.oPool = questions.filter((item) => item.answer === "O");
@@ -825,6 +978,7 @@ window.addEventListener("resize", prepareArenaMetrics);
 
 updateHud();
 updateToggleButton();
+initUserId();
 verifyApiReady().finally(() => {
   loadSubject(state.subject);
 });
