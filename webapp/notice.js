@@ -48,7 +48,7 @@ function renderNotices(items) {
   if (!items.length) {
     const empty = document.createElement("li");
     empty.className = "notice-empty";
-    empty.textContent = "??? ??? ????.";
+    empty.textContent = "등록된 공지가 없습니다.";
     list.appendChild(empty);
     return;
   }
@@ -74,12 +74,12 @@ function renderNotices(items) {
 
     const title = document.createElement("h3");
     title.className = "notice-title";
-    const titleSuffix = Number(item.is_published) === 1 ? "" : " (???)";
-    title.textContent = `${item.title || "(?? ??)"}${titleSuffix}`;
+    const titleSuffix = Number(item.is_published) === 1 ? "" : " (비공개)";
+    title.textContent = `${item.title || "(제목 없음)"}${titleSuffix}`;
 
     const meta = document.createElement("div");
     meta.className = "notice-meta";
-    meta.textContent = `${item.author || "???"}`;
+    meta.textContent = `${item.author || "관리자"}`;
 
     const body = document.createElement("p");
     body.className = "notice-body-text";

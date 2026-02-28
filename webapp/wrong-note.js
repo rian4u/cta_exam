@@ -134,7 +134,7 @@ function renderResults(items) {
   if (!items.length) {
     const empty = document.createElement("li");
     empty.className = "wrong-result-empty";
-    empty.textContent = "?? ??? ????.";
+    empty.textContent = "조회 결과가 없습니다.";
     resultList.appendChild(empty);
     return;
   }
@@ -161,13 +161,13 @@ function renderResults(items) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "wrong-result-trigger";
-      button.textContent = `${item.subject} OX | ${item.question_no}?`;
+      button.textContent = `${item.subject} OX | ${item.question_no}번`;
       trigger = button;
     } else {
       const link = document.createElement("a");
       link.className = "wrong-result-link";
       link.href = `./mock-exam.html?${query.toString()}`;
-      link.textContent = `${item.subject} | ${item.year}? | ${item.question_no}?`;
+      link.textContent = `${item.subject} | ${item.year}년 | ${item.question_no}번`;
       trigger = link;
     }
 
@@ -179,11 +179,11 @@ function renderResults(items) {
 
       const answer = document.createElement("div");
       answer.className = "wrong-result-inline-answer";
-      answer.textContent = `?? ${item.answer || "-"}`;
+      answer.textContent = `정답 ${item.answer || "-"}`;
 
       const explanation = document.createElement("div");
       explanation.className = "wrong-result-inline-body";
-      explanation.textContent = item.explanation || "?? ??? ????.";
+      explanation.textContent = item.explanation || "해설 정보가 없습니다.";
 
       explainBox.append(answer, explanation);
       row.append(titleRow, explainBox);
@@ -199,7 +199,7 @@ function renderResults(items) {
 
     const comment = document.createElement("div");
     comment.className = "wrong-result-comment";
-    comment.textContent = item.comment || "(??? ??)";
+    comment.textContent = item.comment || "(코멘트 없음)";
 
     const updated = document.createElement("span");
     updated.className = "wrong-result-updated";

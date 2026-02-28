@@ -432,12 +432,12 @@ function renderReviewList() {
   }
   const solved = getAnsweredQuestionsForReview();
   const wrongCount = solved.filter((question) => getSelectedChoice(question) !== question.answer).length;
-  reviewSummary.textContent = `? ${solved.length}?? ?? | ?? ${wrongCount}??`;
+  reviewSummary.textContent = `총 ${solved.length}문제 복습 | 오답 ${wrongCount}문제`;
   reviewList.innerHTML = "";
   if (!solved.length) {
     const empty = document.createElement("div");
     empty.className = "qa-empty";
-    empty.textContent = "??? ??? ????.";
+    empty.textContent = "복습할 문제가 없습니다.";
     reviewList.appendChild(empty);
     return;
   }
@@ -455,14 +455,14 @@ function renderReviewList() {
     const myAnswer = getSelectedChoice(question) || "-";
     const meta = document.createElement("div");
     meta.className = "ox-review-meta";
-    meta.textContent = `? ? ${myAnswer} | ?? ${question.answer || "-"}`;
+    meta.textContent = `내 답 ${myAnswer} | 정답 ${question.answer || "-"}`;
     if (myAnswer && question.answer && myAnswer !== question.answer) {
       meta.classList.add("is-wrong");
     }
 
     const body = document.createElement("div");
     body.className = "ox-review-body";
-    body.textContent = question.explanation || "?? ??? ????.";
+    body.textContent = question.explanation || "해설 정보가 없습니다.";
 
     head.append(title, createInlineTrafficGroup(question));
     item.append(head, meta, body);
@@ -525,7 +525,7 @@ function renderExplanationPopup(question) {
 
 function renderExam() {
   if (state.reviewOpen) {
-    examLabel.textContent = `${state.selectedSubject} OX ??`;
+    examLabel.textContent = `${state.selectedSubject} OX 복습`;
     renderReviewList();
     return;
   }

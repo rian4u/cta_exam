@@ -133,7 +133,7 @@ function renderPosts(items) {
   if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "qa-empty";
-    empty.textContent = "?? ??? ??? ????.";
+    empty.textContent = "등록된 질문이 없습니다.";
     list.appendChild(empty);
     return;
   }
@@ -150,22 +150,22 @@ function renderPosts(items) {
 
     const title = document.createElement("div");
     title.className = "qa-title";
-    title.textContent = item.title || "(?? ??)";
+    title.textContent = item.title || "(제목 없음)";
 
     const meta = document.createElement("div");
     meta.className = "qa-meta";
-    const parts = [item.nickname || "??", item.updated_at || item.created_at || "-"];
+    const parts = [item.nickname || "익명", item.updated_at || item.created_at || "-"];
     if (item.subject) {
       let questionRef = item.subject;
       if (Number(item.year) > 0) {
         questionRef += ` ${item.year}`;
       }
       if (Number(item.question_no) > 0) {
-        questionRef += `-${item.question_no}?`;
+        questionRef += `-${item.question_no}번`;
       }
       parts.push(questionRef);
     }
-    meta.textContent = parts.join(" ? ");
+    meta.textContent = parts.join(" | ");
 
     const content = document.createElement("div");
     content.className = "qa-content";
@@ -180,7 +180,7 @@ function renderPosts(items) {
     if (!answers.length) {
       const empty = document.createElement("div");
       empty.className = "qa-answer-empty";
-      empty.textContent = "?? ??? ????.";
+      empty.textContent = "등록된 답변이 없습니다.";
       answerList.appendChild(empty);
     } else {
       answers.forEach((answer) => {
@@ -189,7 +189,7 @@ function renderPosts(items) {
 
         const answerMeta = document.createElement("div");
         answerMeta.className = "qa-answer-meta";
-        answerMeta.textContent = `${answer.nickname || "??"} ? ${answer.updated_at || answer.created_at || "-"}`;
+        answerMeta.textContent = `${answer.nickname || "익명"} | ${answer.updated_at || answer.created_at || "-"}`;
 
         const answerBody = document.createElement("div");
         answerBody.className = "qa-answer-body";
