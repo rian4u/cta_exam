@@ -59,8 +59,10 @@ body {
 }
 
 .game-topbar {
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
+  column-gap: 8px;
 }
 
 .game-subject-box {
@@ -70,10 +72,29 @@ body {
 
 .game-select {
   width: 100%;
+  min-width: 0;
+  height: 40px;
+  font-size: 0.88rem;
+  padding-right: 30px;
 }
 
 .game-actions {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.game-control-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.game-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .game-arena {
@@ -130,6 +151,8 @@ body {
   .game-topbar {
     gap: 8px;
     align-items: end;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-auto-flow: column;
     flex-direction: row;
   }
 
@@ -141,10 +164,12 @@ body {
   .game-select {
     width: 100%;
     min-width: 0;
+    height: 40px;
   }
 
   .game-actions {
     flex: 0 0 auto;
+    gap: 6px;
   }
 
   .game-arena {
@@ -168,9 +193,9 @@ body {
   }
 
   .game-control-icon-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
   }
 
   .game-score-panel,
