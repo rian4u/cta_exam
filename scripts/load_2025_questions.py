@@ -1108,11 +1108,12 @@ def upsert_questions(conn: sqlite3.Connection, rows: List[QuestionRow]) -> None:
 
 
 def print_summary(rows: List[QuestionRow]) -> None:
-    by_subject: Dict[str, int] = {}
+    by_year: Dict[int, Dict[str, int]] = {}
     missing_answer = 0
     missing_published = 0
 
     for row in rows:
+        by_subject = by_year.setdefault(int(row.출제연도), {})
         by_subject[row.과목] = by_subject.get(row.과목, 0) + 1
         if not row.답:
             missing_answer += 1
@@ -1120,38 +1121,54 @@ def print_summary(rows: List[QuestionRow]) -> None:
             missing_published += 1
 
     print(f"총 적재 대상 문항 수: {len(rows)}")
-    for subject in SUBJECTS:
-        if subject in by_subject:
-            print(f"- {subject}: {by_subject[subject]}문항")
+    for year in sorted(by_year):
+        print(f"[{year}]")
+        for subject in SUBJECTS:
+            if subject in by_year[year]:
+                print(f"- {subject}: {by_year[year][subject]}문항")
     print(f"풀이파일 정답 미매핑: {missing_answer}문항")
     print(f"실제정답 미매핑: {missing_published}문항")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="2025 세무사 1차 시험 문제 DB 적재 스크립트")
-    parser.add_argument("--data-dir", default="data/2025", help="입력 데이터 폴더")
+    parser = argparse.ArgumentParser(description="세무사 1차 시험 PDF/풀이/실제정답을 문제 DB에 적재")
+    parser.add_argument("--data-root", default="data", help="연도 폴더를 포함하는 루트 폴더")
+    parser.add_argument("--years", nargs="+", type=int, default=[2025], help="적재할 연도 목록")
+    parser.add_argument("--data-dir", default="", help="단일 연도 폴더 직접 지정(레거시 호환)")
     parser.add_argument("--db-path", default="data/questions.db", help="SQLite DB 파일 경로")
-    parser.add_argument("--year", type=int, default=2025, help="출제연도")
+    parser.add_argument("--year", type=int, default=2025, help="--data-dir 사용 시 출제연도")
     args = parser.parse_args()
-
-    data_dir = Path(args.data_dir)
-    if not data_dir.exists():
-        raise FileNotFoundError(f"데이터 폴더를 찾을 수 없습니다: {data_dir}")
-
-    rows = build_question_rows(data_dir, args.year)
 
     db_path = Path(args.db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
+    all_rows: List[QuestionRow] = []
+
+    if args.data_dir:
+        data_dir = Path(args.data_dir)
+        if not data_dir.exists():
+            raise FileNotFoundError(f"데이터 폴더를 찾을 수 없습니다: {data_dir}")
+        all_rows = build_question_rows(data_dir, args.year)
+    else:
+        data_root = Path(args.data_root)
+        for year in args.years:
+            data_dir = data_root / str(year)
+            if not data_dir.exists():
+                raise FileNotFoundError(f"데이터 폴더를 찾을 수 없습니다: {data_dir}")
+            print(f"파싱 중: {data_dir}")
+            year_rows = build_question_rows(data_dir, int(year))
+            print(f"  -> {len(year_rows)}문항")
+            all_rows.extend(year_rows)
+
     conn = sqlite3.connect(db_path)
     try:
         ensure_schema(conn)
-        upsert_questions(conn, rows)
+        upsert_questions(conn, all_rows)
         conn.commit()
     finally:
         conn.close()
 
     print(f"DB 적재 완료: {db_path}")
-    print_summary(rows)
+    print_summary(all_rows)
 
 
 if __name__ == "__main__":
