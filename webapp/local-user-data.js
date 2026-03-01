@@ -1,6 +1,7 @@
 (function () {
   const DEVICE_KEY = "taxexam:device-id";
   const NOTES_KEY = "taxexam:user-notes:v1";
+  const NOTES_BACKUP_KEY = "taxexam:user-notes:v1:backup";
   const IMPORTANCE_LEVELS = new Set(["red", "yellow", "green", "gray"]);
 
   function normalizeText(value, maxLength = 0) {
@@ -83,32 +84,50 @@
     return value;
   }
 
+  function parseStore(raw) {
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    return parsed.notes && typeof parsed.notes === "object" ? parsed.notes : {};
+  }
+
   function readStore() {
     try {
-      const raw = localStorage.getItem(NOTES_KEY);
-      if (!raw) {
-        return {};
+      const primary = parseStore(localStorage.getItem(NOTES_KEY));
+      if (primary) {
+        return primary;
       }
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object") {
-        return {};
+      const backup = parseStore(localStorage.getItem(NOTES_BACKUP_KEY));
+      if (backup) {
+        localStorage.setItem(
+          NOTES_KEY,
+          JSON.stringify({
+            version: 1,
+            restored_at: new Date().toISOString(),
+            notes: backup,
+          })
+        );
+        return backup;
       }
-      return parsed.notes && typeof parsed.notes === "object" ? parsed.notes : {};
+      return {};
     } catch (_) {
       return {};
     }
   }
 
   function writeStore(notes) {
+    const payload = JSON.stringify({
+      version: 1,
+      updated_at: new Date().toISOString(),
+      notes,
+    });
     try {
-      localStorage.setItem(
-        NOTES_KEY,
-        JSON.stringify({
-          version: 1,
-          updated_at: new Date().toISOString(),
-          notes,
-        })
-      );
+      localStorage.setItem(NOTES_KEY, payload);
+      localStorage.setItem(NOTES_BACKUP_KEY, payload);
     } catch (_) {}
   }
 
