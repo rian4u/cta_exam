@@ -1,5 +1,11 @@
+html,
+body {
+  height: 100%;
+}
+
 body {
   -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
 }
 
 .game-select,
@@ -28,10 +34,83 @@ body {
   flex-wrap: nowrap;
 }
 
+.phone.game-page-shell {
+  width: min(430px, calc(100vw - 24px));
+  height: min(860px, calc(100dvh - 24px));
+  height: min(860px, calc(100svh - 24px));
+  min-height: 0;
+  margin: 12px auto;
+  overflow: hidden;
+}
+
+.game-page-shell .phone-header {
+  flex: 0 0 auto;
+}
+
+.game-wrap {
+  min-height: 0;
+}
+
+.game-stage {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.game-topbar {
+  flex-direction: row;
+  align-items: end;
+}
+
+.game-subject-box {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.game-select {
+  width: 100%;
+}
+
+.game-actions {
+  flex: 0 0 auto;
+}
+
+.game-arena {
+  height: auto;
+  min-height: 0;
+}
+
+.game-hud {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding-top: 10px;
+}
+
+.game-score-panel {
+  min-width: 0;
+  font-size: clamp(0.58rem, 1.8vw, 0.7rem);
+}
+
+.game-combo-panel,
+.game-lives-panel {
+  white-space: nowrap;
+}
+
+.game-review-panel {
+  bottom: 74px;
+}
+
 @media (max-width: 520px) {
+  body {
+    padding: 8px;
+    align-items: center;
+  }
+
   .phone.game-page-shell {
     width: min(430px, calc(100vw - 24px));
-    min-height: calc(100dvh - 24px);
+    height: min(820px, calc(100dvh - 16px));
+    height: min(820px, calc(100svh - 16px));
+    min-height: 0;
     margin: 12px auto;
     border-radius: 34px;
     border: 1px solid rgba(133, 204, 255, 0.24);
@@ -44,13 +123,14 @@ body {
   }
 
   .game-stage {
-    height: min(760px, calc(100dvh - 160px));
-    min-height: 700px;
+    height: 100%;
+    min-height: 0;
   }
 
   .game-topbar {
     gap: 8px;
     align-items: end;
+    flex-direction: row;
   }
 
   .game-subject-box {
@@ -68,18 +148,54 @@ body {
   }
 
   .game-arena {
-    height: 500px;
+    height: auto;
+    min-height: 0;
     margin: 14px 10px 0;
   }
 
   .game-hud {
     margin: 12px 10px 0;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    padding: 0;
   }
 
   .game-review-panel {
     left: 10px;
     right: 10px;
     top: 118px;
-    bottom: 72px;
+    bottom: 62px;
+  }
+
+  .game-control-icon-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .game-score-panel,
+  .game-combo-panel,
+  .game-lives-panel {
+    min-height: 40px;
+    border-radius: 12px;
+  }
+
+  .game-score-panel {
+    padding: 0 10px;
+    font-size: clamp(0.54rem, 2vw, 0.62rem);
+  }
+
+  .game-combo-panel {
+    padding: 0 10px;
+    font-size: 0.7rem;
+  }
+
+  .game-lives-panel {
+    padding: 0 8px;
+    gap: 3px;
+  }
+
+  .game-heart {
+    font-size: 0.95rem;
   }
 }
