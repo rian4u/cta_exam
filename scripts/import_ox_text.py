@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import sqlite3
+import unicodedata
 from pathlib import Path
 
 from data_paths import find_year_file
@@ -12,6 +14,8 @@ TABLE_OX = "OX"
 COL_YEAR = "\ucd9c\uc81c\uc5f0\ub3c4"
 COL_SUBJECT = "\uacfc\ubaa9"
 COL_QNO = "\ubb38\uc81c\ubc88\ud638"
+COL_SOURCE_QNO = "\uc6d0\ubb38\ubc88\ud638"
+COL_STABLE_ID = "stable_id"
 COL_QUESTION = "\ubb38\uc81c"
 COL_ANSWER = "\ub2f5"
 COL_EXPLANATION = "\ud574\uc124"
@@ -38,6 +42,21 @@ def clean_text(value: str) -> str:
 def normalize_ox_answer(value: str) -> str:
     token = str(value or "").strip().upper()
     return token if token in {"O", "X"} else ""
+
+
+def canonicalize_question(value: str) -> str:
+    text = unicodedata.normalize("NFKC", clean_text(value)).casefold()
+    text = re.sub(r"[\W_]+", "", text, flags=re.UNICODE)
+    return text
+
+
+def build_stable_id(source_qno: int, question: str, occurrence: int = 1) -> str:
+    canonical = canonicalize_question(question)
+    digest = hashlib.sha1(canonical.encode("utf-8")).hexdigest()[:16]
+    base = f"ox-{int(source_qno)}-{digest}"
+    if occurrence <= 1:
+        return base
+    return f"{base}-{occurrence}"
 
 
 def strip_header_prefix(line: str, qno: int) -> str:
@@ -159,6 +178,8 @@ def ensure_ox_table(conn: sqlite3.Connection) -> None:
             "{COL_YEAR}" INTEGER NOT NULL,
             "{COL_SUBJECT}" TEXT NOT NULL,
             "{COL_QNO}" INTEGER NOT NULL,
+            "{COL_SOURCE_QNO}" INTEGER NOT NULL DEFAULT 0,
+            "{COL_STABLE_ID}" TEXT NOT NULL DEFAULT '',
             "{COL_QUESTION}" TEXT NOT NULL,
             "{COL_ANSWER}" TEXT NOT NULL,
             "{COL_EXPLANATION}" TEXT NOT NULL,
@@ -166,6 +187,34 @@ def ensure_ox_table(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    columns = {row[1] for row in conn.execute(f'PRAGMA table_info("{TABLE_OX}")')}
+    if COL_SOURCE_QNO not in columns:
+        conn.execute(
+            f'ALTER TABLE "{TABLE_OX}" ADD COLUMN "{COL_SOURCE_QNO}" INTEGER NOT NULL DEFAULT 0'
+        )
+        conn.execute(
+            f'UPDATE "{TABLE_OX}" SET "{COL_SOURCE_QNO}" = "{COL_QNO}" WHERE "{COL_SOURCE_QNO}" = 0'
+        )
+    if COL_STABLE_ID not in columns:
+        conn.execute(
+            f'ALTER TABLE "{TABLE_OX}" ADD COLUMN "{COL_STABLE_ID}" TEXT NOT NULL DEFAULT \'\''
+        )
+    rows = conn.execute(
+        f'SELECT rowid, "{COL_SOURCE_QNO}", "{COL_QNO}", "{COL_QUESTION}", "{COL_STABLE_ID}" FROM "{TABLE_OX}"'
+    ).fetchall()
+    occurrence_map: dict[str, int] = {}
+    for rowid, source_qno, qno, question, stable_id in rows:
+        current = str(stable_id or "").strip()
+        if current:
+            continue
+        source_value = int(source_qno or 0) or int(qno or 0)
+        base = build_stable_id(source_value, str(question or ""), 1)
+        occurrence_map[base] = occurrence_map.get(base, 0) + 1
+        next_stable_id = build_stable_id(source_value, str(question or ""), occurrence_map[base])
+        conn.execute(
+            f'UPDATE "{TABLE_OX}" SET "{COL_STABLE_ID}" = ?, "{COL_SOURCE_QNO}" = ? WHERE rowid = ?',
+            (next_stable_id, source_value, rowid),
+        )
     conn.commit()
 
 
@@ -183,12 +232,28 @@ def import_ox_text(*, db_path: Path, year: int, subject: str, text_path: Path) -
         )
         sql = f"""
             INSERT INTO "{TABLE_OX}"
-            ("{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}", "{COL_QUESTION}", "{COL_ANSWER}", "{COL_EXPLANATION}")
-            VALUES (?, ?, ?, ?, ?, ?)
+            ("{COL_YEAR}", "{COL_SUBJECT}", "{COL_QNO}", "{COL_SOURCE_QNO}", "{COL_STABLE_ID}", "{COL_QUESTION}", "{COL_ANSWER}", "{COL_EXPLANATION}")
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
         updated = 0
-        for sequence, (_source_qno, question, answer, explanation) in enumerate(records, start=1):
-            cursor = conn.execute(sql, (int(year), subject.strip(), sequence, question, answer, explanation))
+        occurrence_map: dict[str, int] = {}
+        for sequence, (source_qno, question, answer, explanation) in enumerate(records, start=1):
+            base = build_stable_id(source_qno, question, 1)
+            occurrence_map[base] = occurrence_map.get(base, 0) + 1
+            stable_id = build_stable_id(source_qno, question, occurrence_map[base])
+            cursor = conn.execute(
+                sql,
+                (
+                    int(year),
+                    subject.strip(),
+                    sequence,
+                    int(source_qno),
+                    stable_id,
+                    question,
+                    answer,
+                    explanation,
+                ),
+            )
             if cursor.rowcount and cursor.rowcount > 0:
                 updated += int(cursor.rowcount)
         conn.commit()

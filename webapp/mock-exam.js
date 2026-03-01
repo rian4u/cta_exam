@@ -7,6 +7,7 @@ const IMPORTANCE_LEVELS = new Set(["red", "yellow", "green", "gray"]);
 const USER_STORAGE_KEY = "taxexam:device-id";
 const LEGACY_USER_STORAGE_KEY = "taxexam:user-id";
 const DEFAULT_USER_ID = "";
+const LocalUserData = window.TaxExamLocalData || null;
 
 const TEXT = {
   explainOpen: "해설보기",
@@ -130,6 +131,10 @@ function applyUserId(value, { persist = true } = {}) {
 }
 
 function initUserId() {
+  if (LocalUserData && typeof LocalUserData.getDeviceId === "function") {
+    applyUserId(LocalUserData.getDeviceId(), { persist: false });
+    return;
+  }
   const storedUserId = (() => {
     try {
       return (
@@ -266,22 +271,15 @@ async function loadQuestionsFromDb() {
 }
 
 async function loadWrongNotesFromDb() {
-  if (!state.apiReady || !state.apiBase) {
+  if (!LocalUserData || typeof LocalUserData.getNotesMap !== "function") {
     state.wrongNotes = {};
     return;
   }
-  const query = new URLSearchParams({
-    user_id: state.userId,
+  state.wrongNotes = LocalUserData.getNotesMap({
     source: "question",
-    year: String(state.selectedYear),
+    year: state.selectedYear,
     subject: state.selectedSubject,
   });
-  const response = await fetch(`${state.apiBase}/api/wrong-notes/map?${query.toString()}`);
-  if (!response.ok) {
-    throw new Error(`wrong-note map api failed: ${response.status}`);
-  }
-  const payload = await response.json();
-  state.wrongNotes = payload.items && typeof payload.items === "object" ? payload.items : {};
 }
 
 function getApiBaseCandidates() {
@@ -484,21 +482,19 @@ function getWrongNote(question) {
 }
 
 async function persistWrongNote(question, note) {
-  if (!state.apiReady || !state.apiBase) {
+  if (!LocalUserData || typeof LocalUserData.upsertNote !== "function") {
     return;
   }
-  await fetch(`${state.apiBase}/api/wrong-notes`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      user_id: state.userId,
-      source: "question",
-      year: state.selectedYear,
-      subject: state.selectedSubject,
-      question_no: question.originalNo,
-      importance: note.importance || "",
-      comment: note.comment || "",
-    }),
+  LocalUserData.upsertNote({
+    source: "question",
+    year: state.selectedYear,
+    subject: state.selectedSubject,
+    question_no: question.originalNo,
+    importance: note.importance || "",
+    comment: note.comment || "",
+    question_preview: question.stem || "",
+    answer: question.answer || question.distributedAnswer || "",
+    explanation: question.explanation || "",
   });
 }
 

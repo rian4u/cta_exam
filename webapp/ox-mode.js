@@ -5,6 +5,7 @@ const ALL_FILTER_COLORS = ["red", "yellow", "green", "gray"];
 const DEFAULT_IMPORTANCE = "";
 const USER_STORAGE_KEY = "taxexam:device-id";
 const LEGACY_USER_STORAGE_KEY = "taxexam:user-id";
+const LocalUserData = window.TaxExamLocalData || null;
 
 const TEXT = {
   noData: "선택한 과목 OX 데이터가 없습니다.",
@@ -89,6 +90,10 @@ function applyUserId(value, { persist = true } = {}) {
 }
 
 function initUserId() {
+  if (LocalUserData && typeof LocalUserData.getDeviceId === "function") {
+    applyUserId(LocalUserData.getDeviceId(), { persist: false });
+    return;
+  }
   const storedUserId = (() => {
     try {
       return (
@@ -169,6 +174,8 @@ function selectSubject(subject) {
 function normalizeQuestions(rows) {
   const normalized = rows.map((row) => ({
     originalNo: Number(row.original_no),
+    sourceNo: Number(row.source_no || row.original_no || 0),
+    stableId: String(row.stable_id || "").trim(),
     stem: stripLeadingQuestionNo(row.question || ""),
     answer: String(row.answer || "").toUpperCase(),
     explanation: String(row.explanation || ""),
@@ -238,24 +245,22 @@ async function loadQuestionsFromDb() {
 }
 
 async function loadTrafficMap() {
-  if (!state.apiReady || !state.apiBase) {
+  if (!LocalUserData || typeof LocalUserData.getNotesMap !== "function") {
     state.trafficMap = {};
     return;
   }
-  const query = new URLSearchParams({
-    user_id: state.userId,
-    source: "ox",
-    year: String(OX_YEAR),
-    subject: state.selectedSubject,
-  });
-  const response = await fetch(`${state.apiBase}/api/wrong-notes/map?${query.toString()}`);
-  if (!response.ok) {
-    throw new Error(`wrong note map api failed: ${response.status}`);
-  }
-  const payload = await response.json();
-  const items = payload && typeof payload.items === "object" ? payload.items : {};
   const nextMap = {};
-  Object.entries(items).forEach(([key, value]) => {
+  state.allQuestions.forEach((question) => {
+    const value =
+      typeof LocalUserData.getNote === "function"
+        ? LocalUserData.getNote({
+            source: "ox",
+            year: OX_YEAR,
+            subject: state.selectedSubject,
+            question_key: question.stableId,
+            question_no: question.sourceNo || question.originalNo,
+          })
+        : null;
     if (!value || typeof value !== "object") {
       return;
     }
@@ -264,7 +269,7 @@ async function loadTrafficMap() {
     if (!importance && !comment) {
       return;
     }
-    nextMap[String(key)] = {
+    nextMap[getQuestionKey(question)] = {
       importance,
       comment,
       updatedAt: String(value.updated_at || ""),
@@ -274,7 +279,7 @@ async function loadTrafficMap() {
 }
 
 function getQuestionKey(question) {
-  return String(question.originalNo);
+  return String(question.stableId || question.originalNo);
 }
 
 function getQuestionNote(question) {
@@ -309,26 +314,21 @@ async function setQuestionTraffic(question, color) {
     state.trafficMap[key] = nextNote;
   }
 
-  if (!state.apiReady || !state.apiBase) {
+  if (!LocalUserData || typeof LocalUserData.upsertNote !== "function") {
     return;
   }
-
-  const response = await fetch(`${state.apiBase}/api/wrong-notes`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      user_id: state.userId,
-      source: "ox",
-      year: OX_YEAR,
-      subject: state.selectedSubject,
-      question_no: question.originalNo,
-      importance: nextNote.importance,
-      comment: nextNote.comment,
-    }),
+  LocalUserData.upsertNote({
+    source: "ox",
+    year: OX_YEAR,
+    subject: state.selectedSubject,
+    question_key: question.stableId,
+    question_no: question.sourceNo || question.originalNo,
+    importance: nextNote.importance,
+    comment: nextNote.comment,
+    question_preview: question.stem || "",
+    answer: question.answer || "",
+    explanation: question.explanation || "",
   });
-  if (!response.ok) {
-    throw new Error(`wrong note upsert failed: ${response.status}`);
-  }
 }
 
 function applyQuestionFilter() {

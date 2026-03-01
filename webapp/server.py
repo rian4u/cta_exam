@@ -522,8 +522,13 @@ def fetch_ox_questions(year: int, subject: str) -> list[dict]:
     conn = sqlite3.connect(DB_PATH)
     try:
         ensure_app_tables(conn)
+        columns = {row[1] for row in conn.execute(f'PRAGMA table_info("{TABLE_OX}")')}
+        has_source_qno = "\uc6d0\ubb38\ubc88\ud638" in columns
+        has_stable_id = "stable_id" in columns
+        source_col = '"\uc6d0\ubb38\ubc88\ud638"' if has_source_qno else f'"{COL_OX_QNO}"'
+        stable_col = '"stable_id"' if has_stable_id else "''"
         sql = f"""
-            SELECT "{COL_OX_QNO}", "{COL_OX_QUESTION}", "{COL_OX_ANSWER}", "{COL_OX_EXPLANATION}"
+            SELECT "{COL_OX_QNO}", {source_col}, {stable_col}, "{COL_OX_QUESTION}", "{COL_OX_ANSWER}", "{COL_OX_EXPLANATION}"
             FROM "{TABLE_OX}"
             WHERE "{COL_YEAR}" = ? AND "{COL_SUBJECT}" = ?
             ORDER BY "{COL_OX_QNO}" ASC
@@ -531,15 +536,29 @@ def fetch_ox_questions(year: int, subject: str) -> list[dict]:
         rows = conn.execute(sql, (year, subject)).fetchall()
     finally:
         conn.close()
-    return [
-        {
-            "original_no": int(qno),
-            "question": normalize_ox_question_text(question or ""),
-            "answer": normalize_question_text(answer or ""),
-            "explanation": normalize_question_text(explanation or ""),
-        }
-        for qno, question, answer, explanation in rows
-    ]
+
+    import hashlib
+
+    def build_stable_id(source_qno: int, question: str) -> str:
+        canonical = re.sub(r"[\W_]+", "", normalize_ox_question_text(question or "").casefold(), flags=re.UNICODE)
+        digest = hashlib.sha1(canonical.encode("utf-8")).hexdigest()[:16]
+        return f"ox-{int(source_qno)}-{digest}"
+
+    results = []
+    for qno, source_qno, stable_id, question, answer, explanation in rows:
+        source_no = int(source_qno or qno)
+        normalized_question = normalize_ox_question_text(question or "")
+        results.append(
+            {
+                "original_no": int(qno),
+                "source_no": source_no,
+                "stable_id": str(stable_id or "").strip() or build_stable_id(source_no, normalized_question),
+                "question": normalized_question,
+                "answer": normalize_question_text(answer or ""),
+                "explanation": normalize_question_text(explanation or ""),
+            }
+        )
+    return results
 
 
 def fetch_notices(*, include_unpublished: bool = False) -> list[dict]:

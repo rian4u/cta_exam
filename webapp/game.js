@@ -4,6 +4,7 @@ const ALL_FILTER_COLORS = ["red", "yellow", "green", "gray"];
 const DEFAULT_IMPORTANCE = "";
 const USER_STORAGE_KEY = "taxexam:device-id";
 const LEGACY_USER_STORAGE_KEY = "taxexam:user-id";
+const LocalUserData = window.TaxExamLocalData || null;
 const MAX_LIVES = 3;
 const SWIPE_THRESHOLD = 56;
 const MILESTONES = [
@@ -130,6 +131,10 @@ function applyUserId(value, { persist = true } = {}) {
 }
 
 function initUserId() {
+  if (LocalUserData && typeof LocalUserData.getDeviceId === "function") {
+    applyUserId(LocalUserData.getDeviceId(), { persist: false });
+    return;
+  }
   const storedUserId = (() => {
     try {
       return (
@@ -224,25 +229,24 @@ function showReviewPanel() {
   }
 }
 
-async function loadTrafficMap() {
-  if (!state.apiReady || !state.apiBase || !state.subject) {
+function getTrafficKey(item) {
+  return String(item?.stableId || item?.originalNo || "");
+}
+
+async function loadTrafficMap(items = []) {
+  if (!LocalUserData || typeof LocalUserData.getNote !== "function" || !state.subject) {
     state.trafficMap = {};
     return;
   }
-  const query = new URLSearchParams({
-    user_id: state.userId,
-    source: "ox",
-    year: String(YEAR),
-    subject: state.subject,
-  });
-  const response = await fetch(`${state.apiBase}/api/wrong-notes/map?${query.toString()}`);
-  if (!response.ok) {
-    throw new Error(`wrong note map api failed: ${response.status}`);
-  }
-  const payload = await response.json();
-  const items = payload && typeof payload.items === "object" ? payload.items : {};
   const nextMap = {};
-  Object.entries(items).forEach(([key, value]) => {
+  items.forEach((item) => {
+    const value = LocalUserData.getNote({
+      source: "ox",
+      year: YEAR,
+      subject: state.subject,
+      question_key: item.stableId,
+      question_no: item.sourceNo || item.originalNo,
+    });
     if (!value || typeof value !== "object") {
       return;
     }
@@ -250,21 +254,29 @@ async function loadTrafficMap() {
     if (!importance) {
       return;
     }
-    nextMap[String(key)] = { importance };
+    nextMap[getTrafficKey(item)] = { importance };
   });
   state.trafficMap = nextMap;
 }
 
-function getTrafficByOriginalNo(originalNo) {
-  const item = state.trafficMap[String(originalNo)];
+function getTrafficForItem(item) {
+  const entry = state.trafficMap[getTrafficKey(item)];
+  if (!entry || typeof entry !== "object") {
+    return DEFAULT_IMPORTANCE;
+  }
+  return normalizeImportanceColor(entry.importance);
+}
+
+function getTrafficByKey(key) {
+  const item = state.trafficMap[String(key)];
   if (!item || typeof item !== "object") {
     return DEFAULT_IMPORTANCE;
   }
   return normalizeImportanceColor(item.importance);
 }
 
-async function setTrafficForOriginalNo(originalNo, color) {
-  const key = String(originalNo);
+async function setTrafficForItem(item, color) {
+  const key = getTrafficKey(item);
   const nextImportance = normalizeImportanceColor(color);
   if (!nextImportance) {
     delete state.trafficMap[key];
@@ -272,26 +284,25 @@ async function setTrafficForOriginalNo(originalNo, color) {
     state.trafficMap[key] = { importance: nextImportance };
   }
 
-  if (!state.apiReady || !state.apiBase) {
+  if (!LocalUserData || typeof LocalUserData.upsertNote !== "function") {
     return;
   }
-
-  const response = await fetch(`${state.apiBase}/api/wrong-notes`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      user_id: state.userId,
-      source: "ox",
-      year: YEAR,
-      subject: state.subject,
-      question_no: Number(originalNo),
-      importance: nextImportance,
-      comment: "",
-    }),
+  const sourceItem =
+    state.reviewHistory.find((row) => getTrafficKey(row) === key) ||
+    state.pool.find((row) => getTrafficKey(row) === key) ||
+    null;
+  LocalUserData.upsertNote({
+    source: "ox",
+    year: YEAR,
+    subject: state.subject,
+    question_key: String(item?.stableId || ""),
+    question_no: Number(item?.sourceNo || item?.originalNo || 0),
+    importance: nextImportance,
+    comment: "",
+    question_preview: sourceItem?.question || "",
+    answer: sourceItem?.answer || "",
+    explanation: sourceItem?.explanation || "",
   });
-  if (!response.ok) {
-    throw new Error(`wrong note upsert failed: ${response.status}`);
-  }
 }
 
 function createReviewTrafficGroup(item) {
@@ -303,11 +314,11 @@ function createReviewTrafficGroup(item) {
     button.className = `traffic-btn traffic-${color}`;
     button.dataset.traffic = color;
     button.setAttribute("aria-label", color);
-    button.classList.toggle("active", getTrafficByOriginalNo(item.originalNo) === color);
+    button.classList.toggle("active", getTrafficForItem(item) === color);
     button.addEventListener("click", async () => {
-      const current = getTrafficByOriginalNo(item.originalNo);
+      const current = getTrafficForItem(item);
       try {
-        await setTrafficForOriginalNo(item.originalNo, current === color ? "" : color);
+        await setTrafficForItem(item, current === color ? "" : color);
       } catch (_) {}
       renderReviewPanel();
     });
@@ -319,6 +330,8 @@ function createReviewTrafficGroup(item) {
 function recordReview(block, outcome) {
   state.reviewHistory.push({
     originalNo: Number(block?.originalNo || 0),
+    sourceNo: Number(block?.sourceNo || block?.originalNo || 0),
+    stableId: String(block?.stableId || ""),
     question: String(block?.question || "").trim(),
     answer: String(block?.answer || "").trim().toUpperCase(),
     explanation: String(block?.explanation || "").trim(),
@@ -671,6 +684,8 @@ function createBlock(item) {
   const block = {
     id: state.nextBlockId += 1,
     originalNo: Number(item.originalNo || 0),
+    sourceNo: Number(item.sourceNo || item.originalNo || 0),
+    stableId: String(item.stableId || ""),
     answer: String(item.answer || "").toUpperCase(),
     question: item.question || "",
     explanation: item.explanation || "",
@@ -862,6 +877,8 @@ async function fetchOxQuestions(subject) {
   return questions
     .map((item) => ({
       originalNo: Number(item.original_no || 0),
+      sourceNo: Number(item.source_no || item.original_no || 0),
+      stableId: String(item.stable_id || "").trim(),
       question: String(item.question || "").trim(),
       answer: String(item.answer || "").trim().toUpperCase(),
       explanation: String(item.explanation || "").trim(),
@@ -880,7 +897,7 @@ async function loadSubject(subject) {
   }
   try {
     const questions = await fetchOxQuestions(subject);
-    await loadTrafficMap();
+    await loadTrafficMap(questions);
     state.pool = shuffle(questions);
     state.xPool = questions.filter((item) => item.answer === "X");
     state.oPool = questions.filter((item) => item.answer === "O");

@@ -1,16 +1,24 @@
-const SUBJECTS = ["재정학", "회계학개론", "상법", "민법", "행정소송법", "국세기본법", "국세징수법", "소득세법", "법인세법", "부가가치세법", "조세범처벌법"];
-const USER_STORAGE_KEY = "taxexam:device-id";
-const LEGACY_USER_STORAGE_KEY = "taxexam:user-id";
-const DEFAULT_USER_ID = "";
+const SUBJECTS = [
+  "재정학",
+  "세법학개론",
+  "회계학개론",
+  "상법",
+  "민법",
+  "행정소송법",
+  "국세기본법",
+  "국세징수법",
+  "소득세법",
+  "법인세법",
+  "부가가치세법",
+  "조세범처벌법",
+];
+const IMPORTANCE_LEVELS = new Set(["red", "yellow", "green", "gray"]);
+const LocalUserData = window.TaxExamLocalData || null;
 
 const state = {
-  apiReady: false,
-  apiBase: "",
   selectedImportances: new Set(["red", "yellow", "green", "gray"]),
-  userId: DEFAULT_USER_ID,
   searchTimer: null,
 };
-const IMPORTANCE_LEVELS = new Set(["red", "yellow", "green", "gray"]);
 
 const subjectSelect = document.getElementById("wrong-filter-subject");
 const trafficButtons = [...document.querySelectorAll("#wrong-filter-traffic .traffic-btn")];
@@ -18,36 +26,11 @@ const commentInput = document.getElementById("wrong-filter-comment");
 const message = document.getElementById("wrong-message");
 const resultList = document.getElementById("wrong-result-list");
 
-function getApiBaseCandidates() {
-  const candidates = [];
-  const { origin, protocol, hostname } = window.location;
-  if (origin && origin !== "null" && protocol.startsWith("http")) {
-    candidates.push(origin);
-  }
-  if (hostname) {
-    candidates.push(`http://${hostname}:8000`);
-  }
-  candidates.push("http://127.0.0.1:8000");
-  candidates.push("http://localhost:8000");
-  return [...new Set(candidates)];
-}
-
-async function verifyApiReady() {
-  for (const base of getApiBaseCandidates()) {
-    try {
-      const response = await fetch(`${base}/api/health`, { mode: "cors" });
-      if (!response.ok) {
-        continue;
-      }
-      state.apiReady = true;
-      state.apiBase = base;
-      message.textContent = "";
-      return;
-    } catch (_) {}
-  }
-  state.apiReady = false;
-  state.apiBase = "";
-  message.textContent = "DB API에 연결되지 않았습니다. webapp/server.py 서버를 실행한 후 다시 시도해 주세요.";
+function normalizeImportance(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return IMPORTANCE_LEVELS.has(normalized) ? normalized : "";
 }
 
 function initSubjectFilter() {
@@ -63,56 +46,6 @@ function renderTrafficFilter() {
   trafficButtons.forEach((button) => {
     button.classList.toggle("active", state.selectedImportances.has(button.dataset.importance || ""));
   });
-}
-
-function normalizeImportance(value) {
-  const normalized = String(value || "")
-    .trim()
-    .toLowerCase();
-  return IMPORTANCE_LEVELS.has(normalized) ? normalized : "";
-}
-
-function normalizeUserId(value) {
-  const normalized = String(value || "").trim();
-  if (!normalized) {
-    return DEFAULT_USER_ID;
-  }
-  return normalized.slice(0, 64);
-}
-
-function generateDeviceId() {
-  try {
-    if (window.crypto && typeof window.crypto.randomUUID === "function") {
-      return `device-${window.crypto.randomUUID()}`;
-    }
-  } catch (_) {}
-  return `device-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function applyUserId(value, { persist = true } = {}) {
-  const userId = normalizeUserId(value);
-  state.userId = userId;
-  if (persist) {
-    try {
-      localStorage.setItem(USER_STORAGE_KEY, userId);
-    } catch (_) {}
-  }
-}
-
-function initUserId() {
-  const storedUserId = (() => {
-    try {
-      return (
-        localStorage.getItem(USER_STORAGE_KEY) ||
-        localStorage.getItem(LEGACY_USER_STORAGE_KEY) ||
-        ""
-      );
-    } catch (_) {
-      return "";
-    }
-  })();
-  const nextUserId = normalizeUserId(storedUserId) || generateDeviceId();
-  applyUserId(nextUserId);
 }
 
 function buildLight(importance) {
@@ -138,36 +71,39 @@ function renderResults(items) {
     resultList.appendChild(empty);
     return;
   }
+
   items.forEach((item) => {
     const row = document.createElement("li");
     row.className = "wrong-result-item";
 
-    const query = new URLSearchParams({
-      year: String(item.year),
-      subject: item.subject,
-      questionNo: String(item.question_no),
-      userId: state.userId,
-    });
-    const source = String(item.source || "question").trim().toLowerCase();
-    if (source === "ox") {
-      query.set("source", "ox");
-    }
-
     const titleRow = document.createElement("div");
     titleRow.className = "wrong-result-title-row";
 
+    const source = String(item.source || "question").trim().toLowerCase();
     let trigger = null;
+
     if (source === "ox") {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "wrong-result-trigger";
-      button.textContent = `${item.subject} OX | ${item.question_no}번`;
+      button.textContent = String(item.subject || "") + " OX | " + String(item.question_no || 0) + "번";
       trigger = button;
     } else {
       const link = document.createElement("a");
+      const query = new URLSearchParams({
+        year: String(item.year || 0),
+        subject: item.subject || "",
+        questionNo: String(item.question_no || 0),
+      });
       link.className = "wrong-result-link";
       link.href = `./mock-exam.html?${query.toString()}`;
-      link.textContent = `${item.subject} | ${item.year}년 | ${item.question_no}번`;
+      link.textContent =
+        String(item.subject || "") +
+        " | " +
+        String(item.year || 0) +
+        "년 | " +
+        String(item.question_no || 0) +
+        "번";
       trigger = link;
     }
 
@@ -179,7 +115,7 @@ function renderResults(items) {
 
       const answer = document.createElement("div");
       answer.className = "wrong-result-inline-answer";
-      answer.textContent = `정답 ${item.answer || "-"}`;
+      answer.textContent = "정답 " + (item.answer || "-");
 
       const explanation = document.createElement("div");
       explanation.className = "wrong-result-inline-body";
@@ -216,45 +152,60 @@ function renderResults(items) {
   });
 }
 
-async function searchWrongNotes() {
-  if (!state.apiReady || !state.apiBase) {
-    await verifyApiReady();
+function getAllNotes() {
+  if (!LocalUserData || typeof LocalUserData.listNotes !== "function") {
+    return [];
   }
-  if (!state.apiReady) {
-    return;
+  return LocalUserData.listNotes();
+}
+
+function filterNotes() {
+  const selectedSubject = String(subjectSelect.value || "").trim();
+  const keyword = String(commentInput.value || "")
+    .trim()
+    .toLowerCase();
+  const allItems = getAllNotes();
+
+  if (state.selectedImportances.size === 0) {
+    return [];
   }
 
-  const query = new URLSearchParams();
-  query.set("user_id", state.userId);
-  if (subjectSelect.value) {
-    query.set("subject", subjectSelect.value);
-  }
-  const keyword = commentInput.value.trim();
-  if (keyword) {
-    query.set("comment", keyword);
-  }
+  return allItems.filter((item) => {
+    const importance = normalizeImportance(item.importance);
+    if (importance) {
+      if (!state.selectedImportances.has(importance)) {
+        return false;
+      }
+    } else if (state.selectedImportances.size !== IMPORTANCE_LEVELS.size) {
+      return false;
+    }
 
-  const response = await fetch(`${state.apiBase}/api/wrong-notes?${query.toString()}`);
-  if (!response.ok) {
-    message.textContent = "오답노트 검색 중 오류가 발생했습니다.";
-    return;
-  }
+    if (selectedSubject && item.subject !== selectedSubject) {
+      return false;
+    }
 
-  const payload = await response.json();
-  const rawItems = Array.isArray(payload.items) ? payload.items : [];
-  const allColorsSelected = state.selectedImportances.size === IMPORTANCE_LEVELS.size;
-  const items =
-    state.selectedImportances.size === 0
-      ? []
-      : rawItems.filter((item) => {
-          const importance = normalizeImportance(item.importance);
-          if (!importance) {
-            return allColorsSelected;
-          }
-          return state.selectedImportances.has(importance);
-        });
+    if (keyword) {
+      const haystack = [
+        item.subject || "",
+        item.comment || "",
+        item.question_preview || "",
+        item.explanation || "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(keyword)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+function searchWrongNotes() {
+  const items = filterNotes();
   renderResults(items);
-  message.textContent = `검색 결과 ${items.length}건`;
+  message.textContent = "검색 결과 " + String(items.length) + "건";
 }
 
 function scheduleSearch() {
@@ -263,7 +214,7 @@ function scheduleSearch() {
   }
   state.searchTimer = window.setTimeout(() => {
     searchWrongNotes();
-  }, 160);
+  }, 120);
 }
 
 function bindEvents() {
@@ -282,15 +233,19 @@ function bindEvents() {
       scheduleSearch();
     });
   });
+
+  window.addEventListener("storage", (event) => {
+    if (event.key === "taxexam:user-notes:v1") {
+      searchWrongNotes();
+    }
+  });
 }
 
-async function init() {
-  initUserId();
+function init() {
   initSubjectFilter();
   renderTrafficFilter();
   bindEvents();
-  await verifyApiReady();
-  await searchWrongNotes();
+  searchWrongNotes();
 }
 
 init();
