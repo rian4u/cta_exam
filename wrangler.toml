@@ -1,0 +1,10 @@
+name = "cta-exam"
+pages_build_output_dir = "webapp"
+
+# Secrets are set via Cloudflare Pages dashboard (not here)
+# Required env vars:
+#   SUPABASE_URL
+#   SUPABASE_ANON_KEY
+#   SUPABASE_SERVICE_ROLE_KEY
+#   NOTICE_ADMIN_KEY
+#   INQUIRY_ADMIN_KEY

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>문의하기 | 세무사 기출 모듈</title>
+    <title>OX가 답이다(세무사편)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -11,6 +11,15 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6QW3VTX0WR"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-6QW3VTX0WR');
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1567804202557274" crossorigin="anonymous"></script>
   </head>
   <body>
     <main class="phone">
@@ -34,22 +43,101 @@
             />
           </svg>
         </a>
-        <h1 class="title">세무사 기출 모듈</h1>
+        <h1 class="title">OX가 답이다(세무사편)</h1>
         <p class="title-quote">문의하기</p>
       </header>
 
-      <section class="sub-page">
+      <section class="sub-page qa-page">
+        <!-- 문의 작성 폼 -->
+        <div class="setup-card" id="inquiry-form-card">
+          <h2>문의 등록</h2>
+          <div class="qa-form">
+            <input
+              id="inq-nickname"
+              type="text"
+              class="wrong-input"
+              placeholder="닉네임 (필수)"
+              maxlength="20"
+              autocomplete="off"
+            />
+            <input
+              id="inq-title"
+              type="text"
+              class="wrong-input"
+              placeholder="제목 (필수)"
+              maxlength="100"
+              autocomplete="off"
+            />
+            <textarea
+              id="inq-body"
+              class="wrong-input"
+              rows="4"
+              placeholder="내용 (필수)"
+              maxlength="3000"
+            ></textarea>
+            <div class="qa-optional-row">
+              <select id="inq-subject" class="wrong-input">
+                <option value="">과목 (선택)</option>
+                <option>재정학</option>
+                <option>세법학개론</option>
+                <option>회계학개론</option>
+                <option>상법</option>
+                <option>민법</option>
+                <option>행정소송법</option>
+                <option>국세기본법</option>
+                <option>국세징수법</option>
+                <option>소득세법</option>
+                <option>법인세법</option>
+                <option>부가가치세법</option>
+                <option>조세범처벌법</option>
+              </select>
+              <input
+                id="inq-year"
+                type="number"
+                class="wrong-input"
+                placeholder="연도"
+                min="2000"
+                max="2099"
+                style="width:90px"
+              />
+              <input
+                id="inq-question-no"
+                type="number"
+                class="wrong-input"
+                placeholder="문제번호"
+                min="1"
+                max="200"
+                style="width:90px"
+              />
+            </div>
+            <p id="inq-message" class="setup-message" style="min-height:1.2em"></p>
+            <button id="inq-submit" type="button" class="start-button">문의 등록</button>
+          </div>
+        </div>
+
+        <!-- 관리자 로그인 (숨김) -->
+        <div id="admin-login-card" class="setup-card" style="display:none">
+          <h2>관리자</h2>
+          <input
+            id="admin-key-input"
+            type="password"
+            class="wrong-input"
+            placeholder="관리자 키 입력"
+            autocomplete="off"
+          />
+          <button id="admin-login-btn" type="button" class="exam-back" style="margin-top:8px">로그인</button>
+          <button id="admin-logout-btn" type="button" class="exam-back" style="margin-top:8px;display:none">로그아웃</button>
+          <p id="admin-status" class="setup-message" style="min-height:1.2em"></p>
+        </div>
+
+        <!-- 문의 목록 -->
         <div class="setup-card">
-          <h2>오류 제보</h2>
-          <p id="contact-message" class="setup-message">
-            잘못된 문제나 해설, 오탈자, 기능 오류가 있으면 아래 메일로 알려주세요.
-          </p>
-          <a id="contact-email-link" class="contact-email-link" href="mailto:rian4u@naver.com">
-            rian4u@naver.com
-          </a>
-          <p class="contact-note">
-            문제 번호, 과목, 연도, 수정 의견을 함께 보내주시면 반영이 빠릅니다.
-          </p>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h2 style="margin:0">문의 목록</h2>
+            <button id="inq-refresh" type="button" class="exam-back">새로고침</button>
+          </div>
+          <p id="inq-list-message" class="setup-message" style="min-height:1em"></p>
+          <div id="inq-list"></div>
         </div>
       </section>
 
@@ -67,6 +155,6 @@
     </main>
 
     <script src="./skin.js"></script>
-    <script type="module" src="./contact.js"></script>
+    <script src="./contact.js"></script>
   </body>
 </html>

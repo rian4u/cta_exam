@@ -1,6 +1,9 @@
-# Secrets
+# Secrets — never commit credentials
 config/openai_api_key.txt
 config/gemini_api_key.txt
+.env
+.env.local
+.dev.vars
 
 # Python cache
 **/__pycache__/

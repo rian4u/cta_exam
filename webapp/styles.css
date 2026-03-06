@@ -1827,6 +1827,39 @@ body.skin-3 .wrong-result-comment {
   gap: 8px;
 }
 
+.qa-answer-admin {
+  border-color: rgba(100, 220, 150, 0.4);
+  background: rgba(10, 50, 30, 0.5);
+}
+
+.qa-badge {
+  display: inline-block;
+  font-size: 0.7em;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  vertical-align: middle;
+  margin-right: 2px;
+}
+
+.qa-badge-admin {
+  background: rgba(100, 220, 150, 0.25);
+  color: #7dffb0;
+  border: 1px solid rgba(100, 220, 150, 0.4);
+}
+
+.qa-badge-closed {
+  background: rgba(100, 180, 255, 0.2);
+  color: #88ccff;
+  border: 1px solid rgba(100, 180, 255, 0.35);
+}
+
+.qa-optional-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .qa-answer-input {
   resize: vertical;
   min-height: 72px;
